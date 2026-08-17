@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>WaterQuiet（水寂）</title>
+  </head>
+  <body>
+    <div id="hud">
+      <div id="crosshair"></div>
+      <div id="info"></div>
+      <div id="hotbar"></div>
+      <div id="help">
+        WASD 移动 · 空格跳跃 · 左键挖掘 · 右键放置 · 滚轮或 1-9 切换方块 · 点击画面锁定鼠标
+      </div>
+    </div>
+
+    <!-- 主菜单 -->
+    <div id="main-menu">
+      <div class="pause-card">
+        <h1>WaterQuiet <span>水寂</span></h1>
+        <p class="tagline">万物皆可拆，废土重建文明</p>
+        <button id="start-btn" class="btn primary">开始游戏</button>
+        <button id="mode-btn" class="btn">切换到移动端</button>
+        <div class="controls">
+          <h2>操作说明</h2>
+          <ul>
+            <li><b>WASD</b> 移动</li>
+            <li><b>空格</b> 跳跃</li>
+            <li><b>鼠标左键</b> 挖掘方块</li>
+            <li><b>鼠标右键</b> 放置方块</li>
+            <li><b>滚轮 / 1-9</b> 切换方块</li>
+            <li><b>Esc</b> 暂停 / 解锁鼠标</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- 暂停菜单 -->
+    <div id="pause-menu">
+      <div class="pause-card">
+        <h1>WaterQuiet <span>水寂</span></h1>
+        <p class="subtitle">暂停中</p>
+        <button id="resume-btn" class="btn primary">继续游戏</button>
+        <button id="reset-btn" class="btn">重新生成世界</button>
+        <button id="menu-btn" class="btn">返回主菜单</button>
+        <button id="mode-btn2" class="btn">切换到移动端</button>
+        <div class="controls">
+          <h2>操作说明</h2>
+          <ul>
+            <li><b>WASD</b> 移动</li>
+            <li><b>空格</b> 跳跃</li>
+            <li><b>鼠标左键</b> 挖掘方块</li>
+            <li><b>鼠标右键</b> 放置方块</li>
+            <li><b>滚轮 / 1-9</b> 切换方块</li>
+            <li><b>Esc</b> 暂停 / 解锁鼠标</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- 暂停按钮（桌面 + 移动端通用，右上角） -->
+    <button id="btn-pause" class="tbtn">⏸</button>
+
+    <!-- 移动端触控 UI -->
+    <div id="touch-ui">
+      <div id="joystick"><div id="joystick-knob"></div></div>
+      <div id="touch-look"></div>
+      <div id="touch-buttons">
+        <button id="btn-jump" class="tbtn">跳</button>
+        <button id="btn-dig" class="tbtn">挖</button>
+        <button id="btn-place" class="tbtn place">放</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,373 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+canvas {
+  display: block;
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  z-index: 30;
+}
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+}
+
+#crosshair::before,
+#crosshair::after {
+  content: "";
+  position: absolute;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+}
+
+#crosshair::before {
+  left: 9px;
+  top: 0;
+  width: 2px;
+  height: 20px;
+}
+
+#crosshair::after {
+  left: 0;
+  top: 9px;
+  width: 20px;
+  height: 2px;
+}
+
+#info {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.6;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  white-space: pre;
+}
+
+#hotbar {
+  position: absolute;
+  left: 50%;
+  bottom: 58px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+
+.slot {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  background: rgba(0, 0, 0, 0.42);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.08s ease, border-color 0.08s ease;
+}
+
+.slot .key {
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.slot .block {
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  box-shadow: inset 0 -3px 6px rgba(0, 0, 0, 0.35), inset 0 2px 3px rgba(255, 255, 255, 0.25);
+}
+
+.slot .label {
+  margin-top: 2px;
+  font-size: 10px;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+}
+
+.slot.active {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-4px);
+}
+
+#help {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.35);
+  padding: 6px 14px;
+  border-radius: 20px;
+}
+
+#pause-menu {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  z-index: 50;
+}
+
+#pause-menu.visible {
+  display: flex;
+}
+
+.pause-card {
+  background: rgba(20, 28, 36, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 32px 40px;
+  min-width: 320px;
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.pause-card h1 {
+  font-size: 28px;
+  margin-bottom: 2px;
+}
+
+.pause-card h1 span {
+  font-size: 16px;
+  font-weight: normal;
+  opacity: 0.7;
+  margin-left: 8px;
+}
+
+.subtitle {
+  opacity: 0.6;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+
+.btn {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 10px;
+  font-size: 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  transition: background 0.12s;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.btn.primary {
+  background: #3a6ea5;
+  border-color: #3a6ea5;
+}
+
+.btn.primary:hover {
+  background: #4780bb;
+}
+
+.controls {
+  margin-top: 16px;
+  text-align: left;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 14px;
+}
+
+.controls h2 {
+  font-size: 13px;
+  opacity: 0.7;
+  margin-bottom: 8px;
+}
+
+.controls ul {
+  list-style: none;
+}
+
+.controls li {
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.controls b {
+  display: inline-block;
+  min-width: 96px;
+  color: #7fb3e8;
+}
+
+/* 主菜单 */
+#main-menu {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  z-index: 50;
+}
+
+#main-menu.visible {
+  display: flex;
+}
+
+.tagline {
+  opacity: 0.7;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* 物品栏可点选（移动端） */
+#hotbar {
+  pointer-events: auto;
+}
+
+.slot {
+  cursor: pointer;
+}
+
+/* —— 移动端触控 UI（默认隐藏，body.touch 显示）—— */
+#touch-ui {
+  display: none;
+}
+
+body.touch #touch-ui {
+  display: block;
+}
+
+body.touch #help,
+body.touch #info {
+  display: none;
+}
+
+#joystick {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  z-index: 20;
+  touch-action: none;
+}
+
+#joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  transform: translate(-50%, -50%);
+}
+
+#touch-look {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 50%;
+  z-index: 15;
+  touch-action: none;
+}
+
+#btn-pause {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-size: 18px;
+  z-index: 25;
+  touch-action: none;
+}
+
+#touch-buttons {
+  position: fixed;
+  right: 16px;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 25;
+}
+
+.tbtn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  font-size: 16px;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.tbtn.place {
+  background: rgba(58, 110, 165, 0.7);
+}
+
+/* 移动端：物品栏缩到顶部、缩小槽位 */
+body.touch #hotbar {
+  top: 8px;
+  bottom: auto;
+  gap: 3px;
+}
+
+body.touch .slot {
+  width: 38px;
+  height: 38px;
+}
+
+body.touch .slot .block {
+  width: 22px;
+  height: 22px;
+}
+
+body.touch .slot .label,
+body.touch .slot .key {
+  display: none;
+}
