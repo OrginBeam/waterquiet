@@ -10,7 +10,7 @@ import {
   RENDER_DISTANCE,
 } from './core/constants';
 import { getBlock as terrainBlock, getColumn, blockAtColumn } from './core/terrain';
-import { buildChunkGeometry } from './core/chunk';
+import { buildChunkGeometry, createAtlasTexture } from './core/chunk';
 import { placeTrees } from './core/tree';
 import { ChunkRecord } from './save';
 
@@ -28,7 +28,9 @@ export class World {
   private meshes = new Map<string, ChunkMeshes>();
   // 与程序化地形不一致的区块：需存盘且会话期内永不下内存。
   private dirtyChunks = new Set<string>();
+  // 顶点色 × 贴图：贴图提供方块主色，顶点色叠加群系染色/面明暗/颜色抖动。
   private material = new THREE.MeshBasicMaterial({
+    map: createAtlasTexture(),
     vertexColors: true,
     side: THREE.DoubleSide,
   });

@@ -33,7 +33,13 @@
         <h1>WaterQuiet <span>水寂</span></h1>
         <p class="tagline">万物皆可拆，废土重建文明</p>
         <!-- 存档槽位（由 main.ts 渲染） -->
+        <!-- 存档槽位列表（可下滑，一页 3 个） -->
         <div id="slots" class="slots"></div>
+        <!-- 新建世界：固定在滚动区外，始终可见 -->
+        <button id="slot-create" class="slot-card create">
+          <span class="slot-num">＋ 新建世界</span>
+          <span class="slot-info">选择一个模式开始新的探索</span>
+        </button>
         <button id="mode-btn" class="btn">切换到移动端</button>
         <div class="controls">
           <h2>操作说明</h2>

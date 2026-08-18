@@ -244,6 +244,9 @@ body.explore .slot .count {
   border-radius: 12px;
   padding: 32px 40px;
   min-width: 320px;
+  max-width: min(92vw, 540px);
+  max-height: 94vh; /* 窗口变矮时可滚动看全 */
+  overflow-y: auto;
   text-align: center;
   color: #fff;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
@@ -344,12 +347,64 @@ body.explore .slot .count {
   font-size: 14px;
 }
 
-/* 主菜单存档槽位 */
+/* 小窗口自适应：缩小间距/字号，保证菜单内容显示完整 */
+@media (max-width: 520px), (max-height: 700px) {
+  .pause-card {
+    padding: 18px 16px;
+    min-width: 0;
+    width: min(92vw, 420px);
+    border-radius: 10px;
+  }
+
+  .pause-card h1 {
+    font-size: 22px;
+  }
+
+  .btn {
+    padding: 10px;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .slot-card {
+    padding: 10px;
+  }
+
+  .slots {
+    max-height: 210px;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .controls {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+
+  .controls li {
+    line-height: 1.7;
+    font-size: 12px;
+  }
+}
+
+/* 主菜单存档槽位：一页最多 3 个，超出下滑查看 */
 .slots {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+  max-height: 268px; /* 约 3 个卡片高度 */
+  overflow-y: auto;
+  overscroll-behavior: contain; /* 滚动到底不穿透页面 */
+}
+
+.slots::-webkit-scrollbar {
+  width: 6px;
+}
+
+.slots::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
 }
 
 .slot-card {
@@ -372,11 +427,12 @@ body.explore .slot .count {
   background: rgba(255, 255, 255, 0.14);
 }
 
-/* 新建世界卡片：虚线边框区分于已存存档 */
+/* 新建世界卡片：虚线边框区分于已存存档；固定于滚动区外，始终可见 */
 .slot-card.create {
   border-style: dashed;
   border-color: rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 14px;
 }
 
 .slot-card.create .slot-num {
@@ -489,17 +545,17 @@ body.touch #info {
 
 #touch-buttons {
   position: fixed;
-  right: 16px;
-  bottom: 24px;
+  right: 14px;
+  bottom: 130px; /* 上移到物品栏上方，避免重叠 */
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   z-index: 25;
 }
 
 .tbtn {
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.3);
   background: rgba(0, 0, 0, 0.42);
@@ -514,31 +570,32 @@ body.touch #info {
   background: rgba(58, 110, 165, 0.7);
 }
 
-/* 移动端：物品栏缩到顶部、槽位加高以容纳方块名称 */
+/* 移动端：物品栏置于屏幕底部居中（类 MC），槽位放大便于点按 */
 body.touch #hotbar {
-  top: 8px;
-  bottom: auto;
+  top: auto;
+  bottom: 16px;
   gap: 3px;
+  max-width: 96vw;
 }
 
 body.touch .slot {
-  width: 38px;
-  height: 52px;
+  width: 44px;
+  height: 60px;
 }
 
 body.touch .slot .block {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
 }
 
 body.touch .slot .label {
   display: block;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1;
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
-  max-width: 36px;
+  max-width: 44px;
 }
 
 body.touch .slot .key {
@@ -546,7 +603,7 @@ body.touch .slot .key {
 }
 
 body.touch .slot .count {
-  font-size: 9px;
-  right: 1px;
-  bottom: 1px;
+  font-size: 11px;
+  right: 2px;
+  bottom: 2px;
 }

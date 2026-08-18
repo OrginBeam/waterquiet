@@ -38,12 +38,14 @@ export class Input {
       if (!this.locked) this.leftHeld = false;
     });
 
-    // 左键按住状态（供持续挖掘）；松手/失焦兜底复位
-    document.addEventListener('mousedown', (e) => {
-      if (e.button === 0) this.leftHeld = true;
+    // 左键按住状态（供持续挖掘）。
+    // 用 Pointer Events + pointerType 过滤：移动端点击触发的兼容 mouse 事件
+    // （如点物品栏）不会误置左键，避免准心对着的方块被误挖掘；真实鼠标始终触发 pointer 事件。
+    document.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button === 0) this.leftHeld = true;
     });
-    document.addEventListener('mouseup', (e) => {
-      if (e.button === 0) this.leftHeld = false;
+    document.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'mouse' && e.button === 0) this.leftHeld = false;
     });
     window.addEventListener('blur', () => {
       this.leftHeld = false;
@@ -73,9 +75,10 @@ export class Input {
     this.touchDigHeld = held;
   }
 
-  // 是否正在挖掘（桌面按住左键 或 移动端按住挖按钮）
+  // 是否正在挖掘（桌面按住左键 或 移动端按住挖按钮）。
+  // 移动端模式下忽略鼠标左键：触屏布局，鼠标点击屏幕不应触发挖掘（挖掘只认「挖」按钮）。
   get digging(): boolean {
-    return this.leftHeld || this.touchDigHeld;
+    return (!this.isTouch && this.leftHeld) || this.touchDigHeld;
   }
 
   // —— 读取（player 每帧使用）——

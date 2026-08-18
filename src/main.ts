@@ -117,6 +117,9 @@ function setState(s: GameState): void {
 // 挖掘是「按住蓄力」：主循环每帧推进，达到硬度时间才挖掉（见 loop）。
 let digTarget: { x: number; y: number; z: number } | null = null;
 let digProgress = 0;
+// 自由模式秒挖的节流：两次挖掘之间的最小间隔，避免按住横扫瞬挖一排。
+const DIG_COOLDOWN = 0.3; // 秒
+let digCooldown = 0;
 
 function raycast(): RaycastHit | null {
   const dir = new THREE.Vector3();
@@ -158,7 +161,7 @@ const slotsEl = document.getElementById('slots')!;
 
 function renderSlots(): void {
   slotsEl.innerHTML = '';
-  // 已存槽位卡片（按槽位号排序）
+  // 已存槽位卡片（按槽位号排序）；「新建世界」卡是静态元素，固定在滚动区外
   for (const [slot, m] of [...slotMeta.entries()].sort((a, b) => a[0] - b[0])) {
     if (m.savedAt === null) continue;
     const card = document.createElement('button');
@@ -170,12 +173,6 @@ function renderSlots(): void {
     card.addEventListener('click', () => void loadSlot(slot));
     slotsEl.appendChild(card);
   }
-  // 新建世界卡片：始终在最后，槽位自动分配
-  const create = document.createElement('button');
-  create.className = 'slot-card create';
-  create.innerHTML = `<span class="slot-num">＋ 新建世界</span><span class="slot-info">选择一个模式开始新的探索</span>`;
-  create.addEventListener('click', openModePicker);
-  slotsEl.appendChild(create);
 }
 
 // 下一个可用槽位号：当前最大槽位 + 1（无存档从 0 开始）。
@@ -276,6 +273,7 @@ function openModePicker(): void {
 function closeModePicker(): void {
   modePicker.classList.remove('visible');
 }
+document.getElementById('slot-create')!.addEventListener('click', openModePicker);
 document.getElementById('mode-pick-free')!.addEventListener('click', () => {
   closeModePicker();
   startWorld('free');
@@ -394,12 +392,12 @@ document.addEventListener('keydown', (e) => {
   if (n >= 0 && n < hotbar.length) selectSlot(n);
 });
 
-// 滚轮切换（桌面）
+// 滚轮切换物品栏（桌面，仅游玩中拦截滚轮；菜单/暂停放行让原生滚动生效，例如滚动存档列表）
 document.addEventListener(
   'wheel',
   (e) => {
-    e.preventDefault();
     if (state !== 'playing') return;
+    e.preventDefault();
     const idx = hotbar.indexOf(selectedBlock);
     const next = (idx + (e.deltaY > 0 ? 1 : -1) + hotbar.length) % hotbar.length;
     selectSlot(next);
@@ -460,26 +458,34 @@ function loop(): void {
     highlight.visible = false;
   }
 
-  // 挖掘：按住左键/挖按钮持续蓄力，达到方块硬度时间才挖掉；松开/暂停重置
+  // 挖掘：自由模式秒挖但有节流（两次之间留间隔）；探索模式按住蓄力达到硬度时间才挖掉；松开/暂停重置
+  if (digCooldown > 0) digCooldown -= dt;
   if (state === 'playing' && input.digging && hit) {
-    if (!digTarget || digTarget.x !== hit.x || digTarget.y !== hit.y || digTarget.z !== hit.z) {
+    if (gameMode === 'free') {
+      // 自由模式：无限方块，无需蓄力，命中即挖（不入库），受冷却节流
+      if (digCooldown <= 0) {
+        world.setBlock(hit.x, hit.y, hit.z, BlockType.Air);
+        digCooldown = DIG_COOLDOWN;
+      }
+    } else if (!digTarget || digTarget.x !== hit.x || digTarget.y !== hit.y || digTarget.z !== hit.z) {
       digTarget = { x: hit.x, y: hit.y, z: hit.z };
       digProgress = 0; // 目标改变 → 重新蓄力
-    }
-    const hardness = BLOCK_HARDNESS[world.getBlock(hit.x, hit.y, hit.z)] ?? 1;
-    digProgress += dt / hardness;
-    if (digProgress >= 1) {
-      // 探索模式：挖掘获得方块（水/空气不可挖，双保险过滤）
-      if (gameMode === 'explore') {
-        const mined = world.getBlock(hit.x, hit.y, hit.z);
-        if (mined !== BlockType.Air && mined !== BlockType.Water) {
-          inventory[mined]++;
-          renderInventory();
+    } else {
+      const hardness = BLOCK_HARDNESS[world.getBlock(hit.x, hit.y, hit.z)] ?? 1;
+      digProgress += dt / hardness;
+      if (digProgress >= 1) {
+        // 探索模式：挖掘获得方块（水/空气不可挖，双保险过滤）
+        if (gameMode === 'explore') {
+          const mined = world.getBlock(hit.x, hit.y, hit.z);
+          if (mined !== BlockType.Air && mined !== BlockType.Water) {
+            inventory[mined]++;
+            renderInventory();
+          }
         }
+        world.setBlock(hit.x, hit.y, hit.z, BlockType.Air);
+        digTarget = null;
+        digProgress = 0;
       }
-      world.setBlock(hit.x, hit.y, hit.z, BlockType.Air);
-      digTarget = null;
-      digProgress = 0;
     }
   } else {
     digTarget = null;
