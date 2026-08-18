@@ -12,13 +12,18 @@ interface TouchActions {
 const LOOK_SCALE = 2.0; // 触控视角灵敏度倍率
 
 export function initTouch(input: Input, actions: TouchActions): (touch: boolean) => void {
-  // —— 虚拟摇杆 ——
+  // —— 浮动虚拟摇杆 ——
+  // 命中区是左下半屏，手指按下位置即成为摇杆圆心，拖动产生方向。
   const joystick = document.getElementById('joystick')!;
+  const joystickBase = document.getElementById('joystick-base')!;
   const knob = document.getElementById('joystick-knob')!;
-  const joyRadius = 40;
+  const joyRadius = 40; // 最大位移（像素），也用作归一化基准
+  const deadZone = 12; // 死区：位移小于此值视为不动，避免手指微抖误触发
   let joyId: number | null = null;
   let joyCX = 0;
   let joyCY = 0;
+  let smoothX = 0;
+  let smoothY = 0;
 
   function updateJoystick(cx: number, cy: number): void {
     let dx = cx - joyCX;
@@ -28,22 +33,39 @@ export function initTouch(input: Input, actions: TouchActions): (touch: boolean)
       dx = (dx / len) * joyRadius;
       dy = (dy / len) * joyRadius;
     }
-    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-    input.setJoystick(dx / joyRadius, dy / joyRadius);
+
+    // 死区 + 平滑（避免方向抖动、突变）
+    let nx = 0;
+    let ny = 0;
+    if (len > deadZone) {
+      nx = dx / joyRadius;
+      ny = dy / joyRadius;
+    }
+    smoothX += (nx - smoothX) * 0.5;
+    smoothY += (ny - smoothY) * 0.5;
+
+    knob.style.transform = `translate(calc(-50% + ${smoothX * joyRadius}px), calc(-50% + ${smoothY * joyRadius}px))`;
+    input.setJoystick(smoothX, smoothY);
   }
 
   function endJoystick(): void {
     joyId = null;
+    smoothX = 0;
+    smoothY = 0;
     input.setJoystick(0, 0);
+    joystickBase.style.display = 'none';
     knob.style.transform = 'translate(-50%, -50%)';
   }
 
   joystick.addEventListener('pointerdown', (e) => {
     if (joyId !== null) return;
     joyId = e.pointerId;
-    const rect = joystick.getBoundingClientRect();
-    joyCX = rect.left + rect.width / 2;
-    joyCY = rect.top + rect.height / 2;
+    joyCX = e.clientX;
+    joyCY = e.clientY;
+    // 把摇杆底座移动到手指按下位置
+    joystickBase.style.left = `${e.clientX}px`;
+    joystickBase.style.top = `${e.clientY}px`;
+    joystickBase.style.display = 'block';
     joystick.setPointerCapture(e.pointerId);
     updateJoystick(e.clientX, e.clientY);
     e.preventDefault();

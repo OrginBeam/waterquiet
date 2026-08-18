@@ -274,25 +274,37 @@ body.touch #info {
   display: none;
 }
 
+/* 浮动摇杆：命中区覆盖左下半屏，按住任意位置出现摇杆 */
 #joystick {
   position: fixed;
-  left: 16px;
-  bottom: 16px;
-  width: 110px;
-  height: 110px;
+  left: 0;
+  bottom: 0;
+  width: 45%;
+  height: 60%;
+  z-index: 20;
+  touch-action: none;
+}
+
+#joystick-base {
+  position: absolute;
+  left: 90px;
+  top: 90px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.08);
   border: 2px solid rgba(255, 255, 255, 0.25);
-  z-index: 20;
-  touch-action: none;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  display: none;
 }
 
 #joystick-knob {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.35);
   transform: translate(-50%, -50%);
@@ -350,7 +362,7 @@ body.touch #info {
   background: rgba(58, 110, 165, 0.7);
 }
 
-/* 移动端：物品栏缩到顶部、缩小槽位 */
+/* 移动端：物品栏缩到顶部、槽位加高以容纳方块名称 */
 body.touch #hotbar {
   top: 8px;
   bottom: auto;
@@ -359,7 +371,7 @@ body.touch #hotbar {
 
 body.touch .slot {
   width: 38px;
-  height: 38px;
+  height: 52px;
 }
 
 body.touch .slot .block {
@@ -367,7 +379,16 @@ body.touch .slot .block {
   height: 22px;
 }
 
-body.touch .slot .label,
+body.touch .slot .label {
+  display: block;
+  font-size: 8px;
+  line-height: 1;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 36px;
+}
+
 body.touch .slot .key {
   display: none;
 }
