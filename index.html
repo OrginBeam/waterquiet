@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>WaterQuiet（水寂）</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   </head>
   <body>
     <div id="hud">
@@ -13,7 +15,21 @@
       <div id="toast"></div>
       <div id="hotbar"></div>
       <div id="help">
-        WASD 移动 · 空格跳跃 · 按住左键挖掘 · 右键放置 · 滚轮或 1-9 切换方块 · 点击画面锁定鼠标
+        WASD 移动 · 空格跳跃 · 按住左键挖掘 · 右键放置 · 滚轮或 1-9 切换方块 · E 打开背包 · F5 切换视角
+      </div>
+    </div>
+
+    <!-- 背包面板（E 键 / 右上角背包按钮打开） -->
+    <div id="backpack">
+      <div class="bp-card">
+        <div class="bp-title">
+          <span>🎒 背包</span>
+          <button id="bp-discard" class="bp-btn">丢弃手持</button>
+        </div>
+        <div id="bp-grid"></div>
+        <div id="bp-hotbar"></div>
+        <div id="bp-held"></div>
+        <p class="bp-hint">左键拿起/放下 · 右键拆半 · 点画面外关闭</p>
       </div>
     </div>
 
@@ -24,6 +40,20 @@
         <button id="mode-pick-free" class="btn primary">自由模式 <span class="mode-desc">无限方块</span></button>
         <button id="mode-pick-explore" class="btn">探索模式 <span class="mode-desc">挖掘获得方块</span></button>
         <button id="mode-pick-cancel" class="btn">取消</button>
+      </div>
+    </div>
+
+    <!-- 联机连接面板（主菜单点「联机」弹出） -->
+    <div id="online-dialog">
+      <div class="pause-card">
+        <h1>🌐 联机</h1>
+        <p class="subtitle">连接服务器，与好友一起建造</p>
+        <label class="field-label">服务器地址</label>
+        <input id="online-addr" class="field-input" type="text" placeholder="ws://localhost:2567（不要带 /game）" />
+        <label class="field-label">玩家名字</label>
+        <input id="online-name" class="field-input" type="text" placeholder="留空随机名字" maxlength="12" />
+        <button id="online-connect" class="btn primary">连接</button>
+        <button id="online-cancel" class="btn">取消</button>
       </div>
     </div>
 
@@ -40,6 +70,11 @@
           <span class="slot-num">＋ 新建世界</span>
           <span class="slot-info">选择一个模式开始新的探索</span>
         </button>
+        <!-- 联机：连接本地/公网服务器 -->
+        <button id="slot-online" class="slot-card create">
+          <span class="slot-num">🌐 联机</span>
+          <span class="slot-info">连接服务器，与好友一起建造</span>
+        </button>
         <button id="mode-btn" class="btn">切换到移动端</button>
         <div class="controls">
           <h2>操作说明</h2>
@@ -49,6 +84,8 @@
             <li><b>鼠标左键</b> 挖掘方块</li>
             <li><b>鼠标右键</b> 放置方块</li>
             <li><b>滚轮 / 1-9</b> 切换方块</li>
+            <li><b>E</b> 打开背包（整理物品）</li>
+            <li><b>F5</b> 切换第一 / 第三人称（第三人称仅观看）</li>
             <li><b>Esc</b> 暂停 / 解锁鼠标</li>
           </ul>
         </div>
@@ -62,6 +99,7 @@
         <p class="subtitle">暂停中</p>
         <button id="resume-btn" class="btn primary">继续游戏</button>
         <button id="save-btn" class="btn">保存游戏</button>
+        <button id="view-btn" class="btn">切换视角（第一/第三人称）</button>
         <button id="reset-btn" class="btn">重新生成世界</button>
         <button id="menu-btn" class="btn">返回主菜单</button>
         <button id="mode-btn2" class="btn">切换到移动端</button>
@@ -73,14 +111,17 @@
             <li><b>鼠标左键</b> 挖掘方块</li>
             <li><b>鼠标右键</b> 放置方块</li>
             <li><b>滚轮 / 1-9</b> 切换方块</li>
+            <li><b>E</b> 打开背包（整理物品）</li>
+            <li><b>F5</b> 切换第一 / 第三人称（第三人称仅观看）</li>
             <li><b>Esc</b> 暂停 / 解锁鼠标</li>
           </ul>
         </div>
       </div>
     </div>
 
-    <!-- 暂停按钮（桌面 + 移动端通用，右上角） -->
+    <!-- 暂停/背包按钮（桌面 + 移动端通用，右上角） -->
     <button id="btn-pause" class="tbtn">⏸</button>
+    <button id="btn-bag" class="tbtn">🎒</button>
 
     <!-- 移动端触控 UI -->
     <div id="touch-ui">

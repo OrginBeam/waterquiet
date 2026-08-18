@@ -1,8 +1,14 @@
 // 单机存档：IndexedDB 槽位读写。零依赖，手写包装。
 // 存档只含被修改过的（dirty）区块，未修改区块由种子即时重建（见 terrain.ts）。
 // typed array 直接走 structured clone 存盘，无需转 Blob。
+//
+// 版本历史：
+//   1 —— inventory 为 number[16]（按 BlockType 索引的数量）
+//   2 —— inventory 升级为 InventorySlot[45]（格子背包），旧档由 upgradeSave 迁移
 
-export const SAVE_VERSION = 1;
+import { InventorySlot, emptyInventory, migrateInventory } from './core/inventory';
+
+export const SAVE_VERSION = 2;
 
 // 游戏模式：自由（无限方块）/ 探索（挖掘获得、放置消耗）。
 export type GameMode = 'free' | 'explore';
@@ -31,7 +37,7 @@ export interface SaveData {
   chunks: ChunkRecord[];
   // 模式与库存（可选：旧档没有这些字段，载入时走默认值）
   mode?: GameMode;
-  inventory?: number[]; // 按 BlockType 索引的数量，长 16
+  inventory?: InventorySlot[]; // 格子背包，长 45（0-8 快捷栏 / 9-44 背包区）
 }
 
 const DB_NAME = 'waterquiet-save';
@@ -98,4 +104,18 @@ export async function listGames(): Promise<SaveData[]> {
   const db = await openDB();
   const all = await req(db.transaction(STORE, 'readonly').objectStore(STORE).getAll());
   return (all as SaveData[]).sort((a, b) => a.slot - b.slot);
+}
+
+// 低版本存档原地升级（当前支持 v1 → v2 的库存迁移）。
+// 版本只降不升：更高版本的存档视为未来格式，交由调用方拒绝载入。
+export function upgradeSave(data: SaveData): SaveData {
+  if (data.version >= SAVE_VERSION) return data;
+  const inv = data.inventory;
+  // v1 库存是 number[16]（按类型索引的数量）；v2 起为对象数组。
+  const legacy = Array.isArray(inv) && inv.length > 0 && typeof (inv as unknown[])[0] === 'number';
+  return {
+    ...data,
+    version: SAVE_VERSION,
+    inventory: legacy ? migrateInventory(inv as unknown as number[]) : emptyInventory(),
+  };
 }

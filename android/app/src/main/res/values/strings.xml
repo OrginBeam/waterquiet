@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">WaterQuiet</string>
-    <string name="title_activity_main">WaterQuiet</string>
+    <string name="app_name">水寂</string>
+    <string name="title_activity_main">水寂</string>
     <string name="package_name">com.waterquiet.app</string>
     <string name="custom_url_scheme">com.waterquiet.app</string>
 </resources>

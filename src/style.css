@@ -156,47 +156,45 @@ canvas {
   position: relative;
   width: 56px;
   height: 56px;
-  background: rgba(0, 0, 0, 0.42);
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-radius: 6px;
+  background: rgba(15, 22, 30, 0.65);
+  backdrop-filter: blur(4px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: transform 0.08s ease, border-color 0.08s ease;
-}
-
-.slot .key {
-  position: absolute;
-  top: 2px;
-  left: 5px;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.6);
+  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), border-color 0.12s ease, background 0.12s ease;
 }
 
 .slot .block {
-  width: 28px;
-  height: 28px;
-  border-radius: 3px;
-  box-shadow: inset 0 -3px 6px rgba(0, 0, 0, 0.35), inset 0 2px 3px rgba(255, 255, 255, 0.25);
+  width: 34px;
+  height: 34px;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5));
+  transition: transform 0.1s ease;
+}
+
+.slot:hover .block {
+  transform: scale(1.08);
 }
 
 .slot .label {
-  margin-top: 2px;
+  margin-top: 1px;
   font-size: 10px;
-  color: #fff;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+  color: #e0e8f0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
 /* 库存数量徽标：探索模式显示，自由模式隐藏 */
 .slot .count {
   position: absolute;
-  right: 3px;
-  bottom: 2px;
+  right: 4px;
+  bottom: 3px;
   font-size: 12px;
-  font-weight: bold;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 1), 0 0 2px #000;
   display: none;
 }
 
@@ -205,9 +203,10 @@ body.explore .slot .count {
 }
 
 .slot.active {
-  border-color: #fff;
-  background: rgba(255, 255, 255, 0.16);
-  transform: translateY(-4px);
+  border-color: #8bbaf0;
+  background: rgba(58, 110, 165, 0.45);
+  transform: translateY(-6px) scale(1.05);
+  box-shadow: inset 0 0 8px rgba(139, 186, 240, 0.4), 0 8px 16px rgba(0, 0, 0, 0.5);
 }
 
 #help {
@@ -435,6 +434,50 @@ body.explore .slot .count {
   margin-bottom: 14px;
 }
 
+/* —— 联机连接面板 —— */
+#online-dialog {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  z-index: 60;
+}
+
+#online-dialog.visible {
+  display: flex;
+}
+
+.field-label {
+  display: block;
+  text-align: left;
+  font-size: 12px;
+  opacity: 0.65;
+  margin: 10px 0 4px;
+}
+
+.field-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.field-input:focus {
+  border-color: #8bbaf0;
+}
+
+#online-dialog .btn {
+  margin-top: 14px;
+}
+
 .slot-card.create .slot-num {
   font-size: 15px;
   opacity: 0.9;
@@ -541,6 +584,174 @@ body.touch #info {
   font-size: 18px;
   z-index: 25;
   touch-action: none;
+}
+
+#btn-bag {
+  position: fixed;
+  top: 12px;
+  right: 64px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-size: 18px;
+  z-index: 25;
+  touch-action: none;
+}
+
+/* —— 背包面板 —— */
+#backpack {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 16, 0.65);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 70;
+}
+
+#backpack.visible {
+  display: flex;
+}
+
+.bp-card {
+  background: rgba(18, 25, 33, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  padding: 22px 24px;
+  max-width: min(94vw, 540px);
+  color: #fff;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  user-select: none;
+}
+
+.bp-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 14px;
+  color: #f0f4f8;
+}
+
+.bp-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  transition: all 0.15s ease;
+}
+
+.bp-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+
+#bp-grid,
+#bp-hotbar {
+  display: grid;
+  grid-template-columns: repeat(9, 48px);
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+#bp-hotbar {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.bp-slot {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  background: rgba(10, 15, 22, 0.65);
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.bp-slot:hover {
+  border-color: #8bbaf0;
+  background: rgba(58, 110, 165, 0.35);
+  transform: translateY(-2px);
+  box-shadow: inset 0 0 6px rgba(139, 186, 240, 0.3), 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.bp-block {
+  position: absolute;
+  inset: 4px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+
+.bp-count {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 1), 0 0 2px #000;
+}
+
+#bp-held {
+  min-height: 28px;
+  margin: 8px 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffd87a;
+  background: rgba(255, 216, 122, 0.1);
+  border: 1px dashed rgba(255, 216, 122, 0.3);
+  padding: 4px 12px;
+  border-radius: 6px;
+}
+
+#bp-held:empty {
+  display: none;
+}
+
+.held-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+}
+
+.bp-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* 小屏：背包格缩小适配 */
+@media (max-width: 520px) {
+  #bp-grid,
+  #bp-hotbar {
+    grid-template-columns: repeat(9, 36px);
+    gap: 4px;
+  }
+
+  .bp-slot {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 #touch-buttons {

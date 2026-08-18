@@ -12,6 +12,8 @@
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
+    "@colyseus/schema": "^4.0.31",
+    "@colyseus/sdk": "^0.17.43",
     "three": "^0.169.0"
   },
   "devDependencies": {
