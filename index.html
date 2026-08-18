@@ -9,9 +9,21 @@
     <div id="hud">
       <div id="crosshair"></div>
       <div id="info"></div>
+      <div id="dig-bar"><div id="dig-fill"></div></div>
+      <div id="toast"></div>
       <div id="hotbar"></div>
       <div id="help">
-        WASD 移动 · 空格跳跃 · 左键挖掘 · 右键放置 · 滚轮或 1-9 切换方块 · 点击画面锁定鼠标
+        WASD 移动 · 空格跳跃 · 按住左键挖掘 · 右键放置 · 滚轮或 1-9 切换方块 · 点击画面锁定鼠标
+      </div>
+    </div>
+
+    <!-- 模式选择（点空存档槽位时弹出） -->
+    <div id="mode-picker">
+      <div class="pause-card">
+        <h1>选择模式</h1>
+        <button id="mode-pick-free" class="btn primary">自由模式 <span class="mode-desc">无限方块</span></button>
+        <button id="mode-pick-explore" class="btn">探索模式 <span class="mode-desc">挖掘获得方块</span></button>
+        <button id="mode-pick-cancel" class="btn">取消</button>
       </div>
     </div>
 
@@ -20,7 +32,8 @@
       <div class="pause-card">
         <h1>WaterQuiet <span>水寂</span></h1>
         <p class="tagline">万物皆可拆，废土重建文明</p>
-        <button id="start-btn" class="btn primary">开始游戏</button>
+        <!-- 存档槽位（由 main.ts 渲染） -->
+        <div id="slots" class="slots"></div>
         <button id="mode-btn" class="btn">切换到移动端</button>
         <div class="controls">
           <h2>操作说明</h2>
@@ -42,6 +55,7 @@
         <h1>WaterQuiet <span>水寂</span></h1>
         <p class="subtitle">暂停中</p>
         <button id="resume-btn" class="btn primary">继续游戏</button>
+        <button id="save-btn" class="btn">保存游戏</button>
         <button id="reset-btn" class="btn">重新生成世界</button>
         <button id="menu-btn" class="btn">返回主菜单</button>
         <button id="mode-btn2" class="btn">切换到移动端</button>

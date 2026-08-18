@@ -66,6 +66,83 @@ canvas {
   white-space: pre;
 }
 
+/* 提示浮层：放置被拦截等信息 */
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: 22%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 8px 18px;
+  border-radius: 20px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+#toast.visible {
+  opacity: 1;
+}
+
+/* 模式选择遮罩 */
+#mode-picker {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  z-index: 60;
+}
+
+#mode-picker.visible {
+  display: flex;
+}
+
+#mode-picker .pause-card {
+  min-width: 320px;
+}
+
+#mode-picker .btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.mode-desc {
+  font-size: 12px;
+  opacity: 0.65;
+  font-weight: normal;
+}
+
+/* 挖掘进度条：准星下方，按住蓄力时显示 */
+#dig-bar {
+  position: absolute;
+  left: 50%;
+  top: 60%;
+  width: 120px;
+  height: 8px;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+#dig-fill {
+  height: 100%;
+  width: 0%;
+  background: #fff;
+  border-radius: 4px;
+}
+
 #hotbar {
   position: absolute;
   left: 50%;
@@ -109,6 +186,22 @@ canvas {
   font-size: 10px;
   color: #fff;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+}
+
+/* 库存数量徽标：探索模式显示，自由模式隐藏 */
+.slot .count {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  display: none;
+}
+
+body.explore .slot .count {
+  display: block;
 }
 
 .slot.active {
@@ -251,6 +344,65 @@ canvas {
   font-size: 14px;
 }
 
+/* 主菜单存档槽位 */
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.slot-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 14px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  transition: background 0.12s;
+}
+
+.slot-card:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* 新建世界卡片：虚线边框区分于已存存档 */
+.slot-card.create {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.slot-card.create .slot-num {
+  font-size: 15px;
+  opacity: 0.9;
+}
+
+.slot-card.create:hover {
+  background: rgba(58, 110, 165, 0.35);
+  border-color: #7fb3e8;
+}
+
+.slot-card .slot-num {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.slot-card .slot-info {
+  font-size: 13px;
+}
+
+.slot-card .slot-info.sub {
+  font-size: 11px;
+  opacity: 0.55;
+}
+
 /* 物品栏可点选（移动端） */
 #hotbar {
   pointer-events: auto;
@@ -391,4 +543,10 @@ body.touch .slot .label {
 
 body.touch .slot .key {
   display: none;
+}
+
+body.touch .slot .count {
+  font-size: 9px;
+  right: 1px;
+  bottom: 1px;
 }

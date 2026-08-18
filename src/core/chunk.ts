@@ -1,4 +1,5 @@
 // 区块网格构建：隐藏面剔除 + 单区块单 Mesh 合并 + 手绘面明暗 + 颜色抖动。
+// 水拆成独立几何体，配合世界侧半透明材质实现水体透明。
 // 阶段①不引入贪婪网格（留作后续优化项）。
 
 import * as THREE from 'three';
@@ -22,18 +23,35 @@ const FACES: Face[] = [
   { dir: [0, 0, -1], corners: [[1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 0]], brightness: 0.6 }, // -Z
 ];
 
+export interface ChunkGeometry {
+  solid: THREE.BufferGeometry | null;
+  water: THREE.BufferGeometry | null;
+}
+
+function makeGeometry(positions: number[], colors: number[], indices: number[]): THREE.BufferGeometry {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setIndex(indices);
+  return geometry;
+}
+
 // 构建某个区块的合并几何体。getBlock(wx, wy, wz) 返回世界坐标方块类型。
-// 空区块返回 null。
+// 空区块的对应几何返回 null。
 export function buildChunkGeometry(
   cx: number,
   cz: number,
   getBlock: (wx: number, wy: number, wz: number) => BlockType,
   seed: number,
-): THREE.BufferGeometry | null {
-  const positions: number[] = [];
-  const colors: number[] = [];
-  const indices: number[] = [];
-  let vertexCount = 0;
+): ChunkGeometry {
+  const solidPos: number[] = [];
+  const solidColors: number[] = [];
+  const solidIndices: number[] = [];
+  const waterPos: number[] = [];
+  const waterColors: number[] = [];
+  const waterIndices: number[] = [];
+  let solidVertexCount = 0;
+  let waterVertexCount = 0;
 
   const originX = cx * CHUNK_SIZE_X;
   const originZ = cz * CHUNK_SIZE_Z;
@@ -45,14 +63,14 @@ export function buildChunkGeometry(
         const wz = originZ + lz;
         const type = getBlock(wx, ly, wz);
         if (type === BlockType.Air) continue;
+        const isWater = type === BlockType.Water;
 
         // 基础色：草随群系配色，其余用固定色
         const baseColor =
           type === BlockType.Grass ? getGrassColor(wx, wz, seed) : BLOCK_COLORS[type] ?? 0xffffff;
 
         // 颜色抖动：每块轻微明暗差异，模拟纹理（水保持均匀）
-        const jitter =
-          type === BlockType.Water ? 1 : 0.94 + hash3D(wx, ly, wz, seed + 1234) * 0.12;
+        const jitter = isWater ? 1 : 0.94 + hash3D(wx, ly, wz, seed + 1234) * 0.12;
 
         const r = ((baseColor >> 16) & 255) * jitter;
         const g = ((baseColor >> 8) & 255) * jitter;
@@ -65,31 +83,37 @@ export function buildChunkGeometry(
           const neighbor = getBlock(originX + nx, ny, originZ + nz);
 
           // 面是否可见：水块只在水面（接触空气）显示；实体块在接触空气或水时显示
-          const visible =
-            type === BlockType.Water
-              ? neighbor === BlockType.Air
-              : neighbor === BlockType.Air || neighbor === BlockType.Water;
+          const visible = isWater
+            ? neighbor === BlockType.Air
+            : neighbor === BlockType.Air || neighbor === BlockType.Water;
 
           if (!visible) continue;
 
           const bright = face.brightness;
-          const base = vertexCount;
-          for (const corner of face.corners) {
-            positions.push(lx + corner[0], ly + corner[1], lz + corner[2]);
-            colors.push((r * bright) / 255, (g * bright) / 255, (b * bright) / 255);
-            vertexCount++;
+          if (isWater) {
+            const base = waterVertexCount;
+            for (const corner of face.corners) {
+              waterPos.push(lx + corner[0], ly + corner[1], lz + corner[2]);
+              waterColors.push((r * bright) / 255, (g * bright) / 255, (b * bright) / 255);
+              waterVertexCount++;
+            }
+            waterIndices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+          } else {
+            const base = solidVertexCount;
+            for (const corner of face.corners) {
+              solidPos.push(lx + corner[0], ly + corner[1], lz + corner[2]);
+              solidColors.push((r * bright) / 255, (g * bright) / 255, (b * bright) / 255);
+              solidVertexCount++;
+            }
+            solidIndices.push(base, base + 1, base + 2, base, base + 2, base + 3);
           }
-          indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
         }
       }
     }
   }
 
-  if (positions.length === 0) return null;
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geometry.setIndex(indices);
-  return geometry;
+  return {
+    solid: solidPos.length > 0 ? makeGeometry(solidPos, solidColors, solidIndices) : null,
+    water: waterPos.length > 0 ? makeGeometry(waterPos, waterColors, waterIndices) : null,
+  };
 }

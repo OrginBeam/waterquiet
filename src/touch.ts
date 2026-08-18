@@ -4,7 +4,6 @@
 import { Input } from './input';
 
 interface TouchActions {
-  dig: () => void;
   place: () => void;
   pause: () => void;
 }
@@ -120,10 +119,16 @@ export function initTouch(input: Input, actions: TouchActions): (touch: boolean)
   jumpBtn.addEventListener('pointerup', () => input.setTouchJump(false));
   jumpBtn.addEventListener('pointercancel', () => input.setTouchJump(false));
 
-  document.getElementById('btn-dig')!.addEventListener('pointerdown', (e) => {
-    actions.dig();
+  // 挖掘：按住持续挖（与跳跃同款的按住检测，进度由 main 主循环推进）
+  const digBtn = document.getElementById('btn-dig')!;
+  digBtn.addEventListener('pointerdown', (e) => {
+    input.setTouchDigHeld(true);
+    digBtn.setPointerCapture(e.pointerId); // 手指滑出按钮仍能收到抬起事件
     e.preventDefault();
   });
+  digBtn.addEventListener('pointerup', () => input.setTouchDigHeld(false));
+  digBtn.addEventListener('pointercancel', () => input.setTouchDigHeld(false));
+
   document.getElementById('btn-place')!.addEventListener('pointerdown', (e) => {
     actions.place();
     e.preventDefault();

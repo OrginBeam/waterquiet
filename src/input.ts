@@ -14,6 +14,9 @@ export class Input {
   private touchDX = 0;
   private touchDY = 0;
   private touchJumpHeld = false;
+  // 挖掘按住状态：桌面左键 / 移动端挖按钮
+  private leftHeld = false;
+  private touchDigHeld = false;
 
   constructor(private dom: HTMLElement) {
     // 窄屏 + 触摸硬件才判定为移动端，避免桌面触摸屏/虚拟触摸设备误判
@@ -31,6 +34,19 @@ export class Input {
 
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.dom;
+      // 失锁视为松开左键，防止退出指针锁后挖掘状态卡住
+      if (!this.locked) this.leftHeld = false;
+    });
+
+    // 左键按住状态（供持续挖掘）；松手/失焦兜底复位
+    document.addEventListener('mousedown', (e) => {
+      if (e.button === 0) this.leftHeld = true;
+    });
+    document.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.leftHeld = false;
+    });
+    window.addEventListener('blur', () => {
+      this.leftHeld = false;
     });
 
     dom.addEventListener('mousedown', () => {
@@ -51,6 +67,15 @@ export class Input {
 
   setTouchJump(held: boolean): void {
     this.touchJumpHeld = held;
+  }
+
+  setTouchDigHeld(held: boolean): void {
+    this.touchDigHeld = held;
+  }
+
+  // 是否正在挖掘（桌面按住左键 或 移动端按住挖按钮）
+  get digging(): boolean {
+    return this.leftHeld || this.touchDigHeld;
   }
 
   // —— 读取（player 每帧使用）——

@@ -21,8 +21,25 @@ export class Player {
   readonly height = 1.8;
   readonly eyeHeight = 1.62;
 
-  private yaw = 0;
-  private pitch = 0;
+  private _yaw = 0;
+  private _pitch = 0;
+
+  // 视角可读写（存档/载入需要）。setter 内同步相机。
+  get yaw(): number {
+    return this._yaw;
+  }
+  set yaw(v: number) {
+    this._yaw = v;
+    this.applyCamera();
+  }
+  get pitch(): number {
+    return this._pitch;
+  }
+  set pitch(v: number) {
+    const limit = Math.PI / 2 - 0.01;
+    this._pitch = Math.max(-limit, Math.min(limit, v));
+    this.applyCamera();
+  }
 
   constructor(
     private camera: THREE.PerspectiveCamera,
@@ -35,12 +52,12 @@ export class Player {
   }
 
   update(dt: number, input: Input): void {
-    // 视角
+    // 视角（原地写私有字段，避免 setter 每帧额外 applyCamera）
     const { dx, dy } = input.consumeLook();
-    this.yaw -= dx * MOUSE_SENSITIVITY;
-    this.pitch -= dy * MOUSE_SENSITIVITY;
+    this._yaw -= dx * MOUSE_SENSITIVITY;
+    this._pitch -= dy * MOUSE_SENSITIVITY;
     const limit = Math.PI / 2 - 0.01;
-    this.pitch = Math.max(-limit, Math.min(limit, this.pitch));
+    this._pitch = Math.max(-limit, Math.min(limit, this._pitch));
 
     // 移动方向（基于 yaw 的水平朝向）
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
@@ -142,6 +159,6 @@ export class Player {
   private applyCamera(): void {
     this.camera.position.set(this.position.x, this.position.y + this.eyeHeight, this.position.z);
     this.camera.rotation.order = 'YXZ';
-    this.camera.rotation.set(this.pitch, this.yaw, 0);
+    this.camera.rotation.set(this._pitch, this._yaw, 0);
   }
 }

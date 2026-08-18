@@ -139,18 +139,66 @@ export function getBlock(x: number, y: number, z: number, seed: number): BlockTy
   return blockAtColumn(getColumn(x, z, seed), x, y, z, seed);
 }
 
-// 找出生点：从原点螺旋搜索最近的陆地（地表高于海平面），避免出生在海里。
-export function findSpawn(seed: number): { x: number; z: number; height: number } {
-  for (let r = 0; r < 256; r++) {
-    for (let dx = -r; dx <= r; dx++) {
-      for (let dz = -r; dz <= r; dz++) {
-        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
-        const h = getHeight(dx, dz, seed);
-        if (h > WATER_LEVEL + 1) {
-          return { x: dx + 0.5, z: dz + 0.5, height: h };
+// 出生点周围须满足「5×5 全部高于水面」，避免落在海岸尖角或小岛上。
+const SPAWN_LAND_AREA = 2;
+// 细找窗口半径：在候选陆块附近这个范围里扫 5×5 干地。
+const SPAWN_FIND_R = 64;
+
+// 在 (cx, cz) 附近找一块 5×5 全干地的出生点；找不到返回 null。
+function findSpawnInArea(cx: number, cz: number, seed: number): { x: number; z: number; height: number } | null {
+  // 局部高度缓存：窗口内每列只算一次噪声
+  const memo = new Map<string, number>();
+  const h = (x: number, z: number): number => {
+    const k = `${x},${z}`;
+    let v = memo.get(k);
+    if (v === undefined) {
+      v = getHeight(x, z, seed);
+      memo.set(k, v);
+    }
+    return v;
+  };
+
+  for (let dx = cx - SPAWN_FIND_R; dx <= cx + SPAWN_FIND_R; dx++) {
+    for (let dz = cz - SPAWN_FIND_R; dz <= cz + SPAWN_FIND_R; dz++) {
+      if (h(dx, dz) <= WATER_LEVEL + 1) continue;
+      let ok = true;
+      for (let ox = -SPAWN_LAND_AREA; ox <= SPAWN_LAND_AREA && ok; ox++) {
+        for (let oz = -SPAWN_LAND_AREA; oz <= SPAWN_LAND_AREA; oz++) {
+          if (h(dx + ox, dz + oz) <= WATER_LEVEL + 1) {
+            ok = false;
+            break;
+          }
         }
       }
+      if (ok) return { x: dx + 0.5, z: dz + 0.5, height: h(dx, dz) };
     }
+  }
+  return null;
+}
+
+// 找出生点：粗扫大范围定位最近的陆块（海洋是低频大片，原点可能在深海盆地），
+// 再在陆块附近细找 5×5 全干地，避免出生在海里或海岸孤岛上。
+export function findSpawn(seed: number): { x: number; z: number; height: number } {
+  // 粗扫：步长 32，范围 ±2048，收集陆地候选并按距离排序
+  const STEP = 32;
+  const RANGE = 2048;
+  const candidates: { x: number; z: number; d: number }[] = [];
+  for (let dx = -RANGE; dx <= RANGE; dx += STEP) {
+    for (let dz = -RANGE; dz <= RANGE; dz += STEP) {
+      if (getHeight(dx, dz, seed) <= WATER_LEVEL + 1) continue;
+      candidates.push({ x: dx, z: dz, d: dx * dx + dz * dz });
+    }
+  }
+  candidates.sort((a, b) => a.d - b.d);
+
+  // 就近在最近的几块陆地里找 5×5 干地出生点
+  for (const c of candidates.slice(0, 6)) {
+    const found = findSpawnInArea(c.x, c.z, seed);
+    if (found) return found;
+  }
+  // 兜底：退回最近的陆地（理论上不会走到这里）
+  if (candidates.length > 0) {
+    return { x: candidates[0].x + 0.5, z: candidates[0].z + 0.5, height: getHeight(candidates[0].x, candidates[0].z, seed) };
   }
   return { x: 0.5, z: 0.5, height: getHeight(0, 0, seed) };
 }

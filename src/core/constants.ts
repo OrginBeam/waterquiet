@@ -68,3 +68,23 @@ export const BLOCK_NAMES: Record<number, string> = {
   [BlockType.Diorite]: '闪长岩',
   [BlockType.Andesite]: '安山岩',
 };
+
+// 挖掘硬度（秒）：按住挖掘需要持续的时间。空气/水不可挖（不会被射线命中）。
+export const BLOCK_HARDNESS: Record<number, number> = {
+  [BlockType.Air]: 0.001,
+  [BlockType.Grass]: 0.6,
+  [BlockType.Dirt]: 0.5,
+  [BlockType.Stone]: 2.0,
+  [BlockType.Water]: 0.001,
+  [BlockType.Sand]: 0.5,
+  [BlockType.Wood]: 1.2,
+  [BlockType.Leaves]: 0.3,
+  [BlockType.Snow]: 0.35,
+  [BlockType.Ice]: 0.9,
+  [BlockType.Gravel]: 0.6,
+  [BlockType.Clay]: 0.6,
+  [BlockType.RedSand]: 0.5,
+  [BlockType.Granite]: 2.6,
+  [BlockType.Diorite]: 2.4,
+  [BlockType.Andesite]: 2.2,
+};

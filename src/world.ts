@@ -1,5 +1,5 @@
 // 世界管理：区块加载/卸载、方块读写、网格重建。
-// 已修改区块存内存（后续阶段落 IndexedDB），未修改区块由种子即时重建。
+// 已修改区块存内存（落盘见 save.ts），未修改区块由种子即时重建。
 
 import * as THREE from 'three';
 import {
@@ -12,16 +12,33 @@ import {
 import { getBlock as terrainBlock, getColumn, blockAtColumn } from './core/terrain';
 import { buildChunkGeometry } from './core/chunk';
 import { placeTrees } from './core/tree';
+import { ChunkRecord } from './save';
+
+// 单个区块的渲染产物：solid 为不透明实体块，water 为半透明水体。
+interface ChunkMeshes {
+  solid?: THREE.Mesh;
+  water?: THREE.Mesh;
+}
 
 export class World {
   seed: number;
   readonly group = new THREE.Group();
 
   private chunks = new Map<string, Uint8Array>();
-  private meshes = new Map<string, THREE.Mesh>();
+  private meshes = new Map<string, ChunkMeshes>();
+  // 与程序化地形不一致的区块：需存盘且会话期内永不下内存。
+  private dirtyChunks = new Set<string>();
   private material = new THREE.MeshBasicMaterial({
     vertexColors: true,
     side: THREE.DoubleSide,
+  });
+  // 水：半透明、不写深度，让水面下的地形透出来。
+  private waterMaterial = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
   });
 
   constructor(seed: number) {
@@ -31,12 +48,58 @@ export class World {
   // 重置世界：清空所有区块与网格，换新种子。
   reset(seed: number): void {
     this.seed = seed;
-    for (const mesh of this.meshes.values()) {
-      this.group.remove(mesh);
-      mesh.geometry.dispose();
-    }
+    for (const m of this.meshes.values()) this.disposeChunkMeshes(m);
     this.meshes.clear();
     this.chunks.clear();
+    this.dirtyChunks.clear();
+  }
+
+  private disposeChunkMeshes(m: ChunkMeshes): void {
+    if (m.solid) {
+      this.group.remove(m.solid);
+      m.solid.geometry.dispose();
+    }
+    if (m.water) {
+      this.group.remove(m.water);
+      m.water.geometry.dispose();
+    }
+  }
+
+  // 导出全部 dirty 区块快照。data 用 slice() 拷贝：
+  // 异步写盘期间玩家可能继续 setBlock，快照与实时内存互不干扰。
+  exportDirtyChunks(): ChunkRecord[] {
+    const out: ChunkRecord[] = [];
+    for (const k of this.dirtyChunks) {
+      const data = this.chunks.get(k);
+      if (data) out.push({ key: k, data: data.slice() });
+    }
+    return out;
+  }
+
+  // 载入存档：把区块塞回 chunks Map 并重新标记 dirty（永驻内存，与生成不再一致）。
+  importChunks(records: ChunkRecord[]): void {
+    const size = CHUNK_SIZE_X * CHUNK_SIZE_Y * CHUNK_SIZE_Z;
+    for (const r of records) {
+      // 防御性校验：尺寸不符的记录丢弃（正常流程不会出现）。
+      if (r.data.length !== size) continue;
+      this.chunks.set(r.key, r.data.slice());
+      this.dirtyChunks.add(r.key);
+    }
+  }
+
+  // 同步重建玩家周围 (2·RENDER_DISTANCE+1)² 区块的网格。
+  // update() 分帧渐进（每帧 2 块）太慢，载入存档瞬间需要一次补全。
+  rebuildArea(px: number, pz: number): void {
+    const pcx = Math.floor(px / CHUNK_SIZE_X);
+    const pcz = Math.floor(pz / CHUNK_SIZE_Z);
+    for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+      for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
+        const cx = pcx + dx;
+        const cz = pcz + dz;
+        this.ensureChunk(cx, cz);
+        this.rebuild(cx, cz);
+      }
+    }
   }
 
   private key(cx: number, cz: number): string {
@@ -72,6 +135,7 @@ export class World {
     const lx = x - cx * CHUNK_SIZE_X;
     const lz = z - cz * CHUNK_SIZE_Z;
     data[y * CHUNK_SIZE_X * CHUNK_SIZE_Z + lz * CHUNK_SIZE_X + lx] = type;
+    this.dirtyChunks.add(this.key(cx, cz));
 
     this.rebuild(cx, cz);
     // 边界改动会影响相邻区块的面剔除，需一并重建
@@ -108,20 +172,29 @@ export class World {
 
     const old = this.meshes.get(k);
     if (old) {
-      this.group.remove(old);
-      old.geometry.dispose();
+      this.disposeChunkMeshes(old);
       this.meshes.delete(k);
     }
 
     if (!this.chunks.has(k)) return;
 
-    const geometry = buildChunkGeometry(cx, cz, (x, y, z) => this.getBlock(x, y, z), this.seed);
-    if (!geometry) return;
+    const geo = buildChunkGeometry(cx, cz, (x, y, z) => this.getBlock(x, y, z), this.seed);
+    const entry: ChunkMeshes = {};
 
-    const mesh = new THREE.Mesh(geometry, this.material);
-    mesh.position.set(cx * CHUNK_SIZE_X, 0, cz * CHUNK_SIZE_Z);
-    this.group.add(mesh);
-    this.meshes.set(k, mesh);
+    if (geo.solid) {
+      const mesh = new THREE.Mesh(geo.solid, this.material);
+      mesh.position.set(cx * CHUNK_SIZE_X, 0, cz * CHUNK_SIZE_Z);
+      this.group.add(mesh);
+      entry.solid = mesh;
+    }
+    if (geo.water) {
+      const mesh = new THREE.Mesh(geo.water, this.waterMaterial);
+      mesh.position.set(cx * CHUNK_SIZE_X, 0, cz * CHUNK_SIZE_Z);
+      this.group.add(mesh);
+      entry.water = mesh;
+    }
+
+    if (entry.solid || entry.water) this.meshes.set(k, entry);
   }
 
   // 每帧根据玩家位置加载周边区块、卸载远处区块。
@@ -129,13 +202,18 @@ export class World {
     const pcx = Math.floor(px / CHUNK_SIZE_X);
     const pcz = Math.floor(pz / CHUNK_SIZE_Z);
 
-    // 收集缺失区块，按与玩家距离排序（近的优先加载）
+    // 收集缺失区块，按与玩家距离排序（近的优先加载）。
+    // 两层判断：从未加载的区块需生成；dirty 区块永驻内存但 mesh 可能尚未构建
+    // （如从存档载入、离玩家较远时），走近后需补 mesh。干净的空区块（无几何）不重复构建。
     const needed: [number, number][] = [];
     for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
       for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
         const cx = pcx + dx;
         const cz = pcz + dz;
-        if (!this.chunks.has(this.key(cx, cz))) needed.push([cx, cz]);
+        const k = this.key(cx, cz);
+        if (!this.chunks.has(k) || (this.dirtyChunks.has(k) && !this.meshes.has(k))) {
+          needed.push([cx, cz]);
+        }
       }
     }
     needed.sort((a, b) => {
@@ -155,11 +233,12 @@ export class World {
     const unloadDist = RENDER_DISTANCE + 1;
     for (const k of [...this.chunks.keys()]) {
       const [cx, cz] = k.split(',').map(Number);
+      // dirty 区块不能卸载：数据与网格都保留，否则修改会随卸载丢失。
+      if (this.dirtyChunks.has(k)) continue;
       if (Math.abs(cx - pcx) > unloadDist || Math.abs(cz - pcz) > unloadDist) {
         const old = this.meshes.get(k);
         if (old) {
-          this.group.remove(old);
-          old.geometry.dispose();
+          this.disposeChunkMeshes(old);
           this.meshes.delete(k);
         }
         this.chunks.delete(k);
