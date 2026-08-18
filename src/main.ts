@@ -409,9 +409,9 @@ function joinOnline(url: string): void {
     showToast(code === 0 ? '已断开连接' : `连接断开（code ${code}）`);
   };
 
-  // 异步连接，失败提示
+  // 异步连接：开始时提示，成功由 world-init 回调提示「已连接服务器」
+  showToast('正在连接服务器…');
   net.connect(url, onlineName)
-    .then(() => showToast('连接中…'))
     .catch((e) => {
       console.warn('联机连接失败', e);
       showToast('无法连接服务器');

@@ -10,6 +10,11 @@ body {
   height: 100%;
   overflow: hidden;
   font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  /* 禁用长按呼出系统菜单/文本选择/选择手柄（安卓长按震动多由此触发） */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 canvas {
