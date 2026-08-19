@@ -4,3 +4,20 @@ dist
 *.local
 .vite
 启动游戏.bat
+
+# Electron 打包产物
+release
+release-build
+*.exe
+*.exe.blockmap
+*.blockmap
+
+# Android 打包产物
+*.apk
+*.apk.snap
+android/app/build
+android/app/release
+android/.gradle
+android/build
+android/capacitor-cordova-android-plugins/build
+android/local.properties

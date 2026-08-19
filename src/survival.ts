@@ -5,27 +5,21 @@ import { BlockType } from './core/constants';
 import { InventorySlot, countOf } from './core/inventory';
 
 // —— 工具等级 ——
-// 0 徒手 / 1 石子 / 2 石镐。只认快捷栏（0-8）手持。
-export function toolLevelOf(inv: InventorySlot[]): number {
-  for (let i = 0; i < 9; i++) {
-    if (inv[i].type === BlockType.StonePickaxe) return 2;
-  }
-  for (let i = 0; i < 9; i++) {
-    if (inv[i].type === BlockType.StoneShard) return 1;
-  }
+// 0 徒手 / 1 石子 / 2 石镐。只认快捷栏「当前选中格」（手持才算工具）。
+export function toolLevelOf(inv: InventorySlot[], selectedSlot: number): number {
+  if (selectedSlot < 0 || selectedSlot >= 9) return 0;
+  const t = inv[selectedSlot].type;
+  if (t === BlockType.StonePickaxe) return 2;
+  if (t === BlockType.StoneShard) return 1;
   return 0;
 }
 
-// 快捷栏手持的「工具物品」（石镐 > 石子 > 木棍）。用于判定特殊掉落（如木棍挖原木→火种）。
-export function heldTool(inv: InventorySlot[]): BlockType | null {
-  let hasStick = false;
-  for (let i = 0; i < 9; i++) {
-    const t = inv[i].type;
-    if (t === BlockType.StonePickaxe) return BlockType.StonePickaxe;
-    if (t === BlockType.StoneShard) return BlockType.StoneShard;
-    if (t === BlockType.Stick) hasStick = true;
-  }
-  return hasStick ? BlockType.Stick : null;
+// 快捷栏「当前选中格」的工具物品（石镐 > 石子 > 木棍）。
+// 用于判定特殊掉落（如手持木棍挖原木→火种）。必须「当前手持」才算，
+// 快捷栏里放着但没选中不算——徒手挖原木应掉木块。
+export function heldTool(inv: InventorySlot[], selectedSlot: number): BlockType | null {
+  if (selectedSlot < 0 || selectedSlot >= 9) return null;
+  return inv[selectedSlot].type ?? null;
 }
 
 // 方块需要的工具等级；null = 无需工具（徒手可挖）。

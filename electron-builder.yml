@@ -1,0 +1,26 @@
+appId: com.waterquiet.app
+productName: WaterQuiet水寂
+directories:
+  output: release-build
+  buildResources: build
+files:
+  - dist/**
+  - electron/**
+  - package.json
+# 跳过原生模块重建：msgpackr-extract 是可选加速项，纯 JS 可运行（游戏走浏览器 WebSocket，
+# 渲染进程不需要 Node 原生模块），避免要求本机安装 Visual Studio 构建工具。
+npmRebuild: false
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: WaterQuiet水寂
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/

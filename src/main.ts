@@ -851,9 +851,18 @@ const onlineDialog = document.getElementById('online-dialog')!;
 const onlineAddrInput = document.getElementById('online-addr') as HTMLInputElement;
 const onlineNameInput = document.getElementById('online-name') as HTMLInputElement;
 
+// 运行环境：Electron / Capacitor（原生端）能直连明文 ws://；浏览器只能走 wss://（混合内容限制）。
+// Electron 的 UA 含 "Electron"；Capacitor Android 的 UA 含 "wv"（WebView）。
+function isNativeApp(): boolean {
+  const ua = navigator.userAgent;
+  return ua.includes('Electron') || ua.includes('wv');
+}
+// 默认联机地址：原生端直连简幻欢（省 CF 一跳）；浏览器走 Cloudflare 中继（wss）。
+const DEFAULT_ADDR = isNativeApp() ? 'ws://play.simpfun.cn:20024' : 'wss://relay.ben-ming.top';
+
 function openOnlineDialog(): void {
   // 填入上次使用的地址/名字（localStorage 记忆）
-  onlineAddrInput.value = localStorage.getItem('wq-net-addr') ?? 'ws://localhost:2567';
+  onlineAddrInput.value = localStorage.getItem('wq-net-addr') ?? DEFAULT_ADDR;
   onlineNameInput.value = localStorage.getItem('wq-net-name') ?? '';
   onlineDialog.classList.add('visible');
 }
@@ -1101,9 +1110,9 @@ function loop(): void {
   last = now;
 
   // —— 昼夜系统 ——
-  // 时间照常流逝（菜单/暂停也不例外）；联机时服务器权威 time 与本地偏差过大则校准
-  // （如刚加入、或后台挂机一段时间后重新回到前台）。
-  dayNight.advance(dt);
+  // 仅在游玩时推进时间（菜单/暂停冻结，避免"时间在主界面跑"）。
+  // 联机时服务器权威 time 与本地偏差过大则校准（如刚加入、或后台挂机后回前台）。
+  if (state === 'playing') dayNight.advance(dt);
   if (online && net.room) {
     const st = net.room.state.time;
     if (Math.abs(dayNight.getTotal() - st) > 30) dayNight.setTotal(st);
@@ -1164,8 +1173,8 @@ function loop(): void {
       if (digCooldown <= 0) {
         const mined = world.getBlock(hit.x, hit.y, hit.z);
         if (mined !== BlockType.Air && mined !== BlockType.Water) {
-          const tool = survival.toolLevelOf(inventory);
-          for (const d of survival.getDrops(mined, tool, survival.heldTool(inventory))) {
+          const tool = survival.toolLevelOf(inventory, selectedSlot);
+          for (const d of survival.getDrops(mined, tool, survival.heldTool(inventory, selectedSlot))) {
             addItem(inventory, d.type, d.count);
           }
           renderInventory();
@@ -1178,7 +1187,7 @@ function loop(): void {
       const want = world.getBlock(hit.x, hit.y, hit.z);
       // 探索模式：工具等级不足的方块（如徒手挖铜矿）不允许蓄力
       if (gameMode === 'explore' && want !== BlockType.Air && want !== BlockType.Water
-          && !survival.canMine(want, survival.toolLevelOf(inventory))) {
+          && !survival.canMine(want, survival.toolLevelOf(inventory, selectedSlot))) {
         digTarget = null;
         digProgress = 0;
         if (performance.now() - lastToolToast > 1200) {
@@ -1193,7 +1202,7 @@ function loop(): void {
     } else {
       // 石镐（2 级）挖石块/铜矿更快：硬度减半，体现工具等级差异
       let hardness = BLOCK_HARDNESS[world.getBlock(hit.x, hit.y, hit.z)] ?? 1;
-      if (gameMode === 'explore' && survival.toolLevelOf(inventory) >= 2) {
+      if (gameMode === 'explore' && survival.toolLevelOf(inventory, selectedSlot) >= 2) {
         const blk = world.getBlock(hit.x, hit.y, hit.z);
         if (blk === BlockType.Stone || blk === BlockType.CopperOre) hardness *= 0.5;
       }
@@ -1203,11 +1212,11 @@ function loop(): void {
         if (gameMode === 'explore') {
           const mined = world.getBlock(hit.x, hit.y, hit.z);
           if (mined !== BlockType.Air && mined !== BlockType.Water) {
-            const tool = survival.toolLevelOf(inventory);
+            const tool = survival.toolLevelOf(inventory, selectedSlot);
             // 负面效果（绝对概率 20%）：挖石块/铜矿 → -5 生命（石镐 2 级无惩罚）
             if (survival.rollMineDamage(mined, tool)) takeMiningDamage();
             // 正面掉落（含保底概率）：按工具等级结算
-            const drops = survival.getDrops(mined, tool, survival.heldTool(inventory));
+            const drops = survival.getDrops(mined, tool, survival.heldTool(inventory, selectedSlot));
             for (const d of drops) {
               const leftover = addItem(inventory, d.type, d.count);
               if (leftover > 0) showToast('背包已满，物品丢失');

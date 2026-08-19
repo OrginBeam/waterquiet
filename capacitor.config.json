@@ -1,5 +1,8 @@
 {
   "appId": "com.waterquiet.app",
   "appName": "WaterQuiet",
-  "webDir": "dist"
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true
+  }
 }
