@@ -1,4 +1,4 @@
-// 方块纹理图集生成：每个瓦片 32×32，共 16 个（4×4 图集 128×128）。
+// 方块纹理图集生成：每个瓦片 32×32，共 64 个（8×4 图集 256×128）。
 // 优先使用用户放在 textures/ 下的同名 PNG（有图用图），缺失的瓦片用程序化噪声生成（无图噪声）。
 // 噪声为「周期 value noise」——采样坐标对瓦片尺寸取模，保证左右/上下无缝平铺。
 
@@ -7,8 +7,8 @@ import { BlockType, BLOCK_COLORS } from './constants';
 import { hash2D } from './noise';
 
 export const ATLAS_TILE = 32; // 瓦片边长（像素）
-export const ATLAS_COLS = 4; // 图集 4×4
-const TILE_COUNT = ATLAS_COLS * ATLAS_COLS; // 16
+export const ATLAS_COLS = 8; // 图集 8 列（8×4）
+export const ATLAS_ROWS = 4; // 图集 4 行
 
 // 每个瓦片对应的纹理文件名。放同名 PNG 到 textures/ 即可覆盖噪声。
 export const TILE_FILE_NAMES: string[] = [
@@ -28,7 +28,17 @@ export const TILE_FILE_NAMES: string[] = [
   'granite.png', // 13 花岗岩
   'diorite.png', // 14 闪长岩
   'andesite.png', // 15 安山岩
+  'glass.png', // 16 玻璃
+  'copper_ore.png', // 17 铜矿
+  'kiln.png', // 18 土窑
+  'sand_sieve.png', // 19 沙筛
+  'crafting_table.png', // 20 木制融合台（完整）
+  'crafting_table_incomplete.png', // 21 不完整的木制融合台
 ];
+
+// 实际使用的瓦片数（= 文件名表长度，当前 22：16 原有 + 6 新增）。
+// 未占用的图集格留空即可，UV 不会引用。
+const TILE_COUNT = TILE_FILE_NAMES.length;
 
 const PI2 = Math.PI * 2;
 
@@ -203,6 +213,93 @@ function icePixels(): [number, number, number][] {
   return out;
 }
 
+// 玻璃：浅蓝白底 + 均匀细颗粒（不透明渲染，视觉上是磨砂玻璃）。
+function glassPixels(): [number, number, number][] {
+  const [r, g, b] = baseRGB(BLOCK_COLORS[BlockType.Glass]);
+  const out: [number, number, number][] = [];
+  for (let y = 0; y < ATLAS_TILE; y++) {
+    for (let x = 0; x < ATLAS_TILE; x++) {
+      const grain = blockGrain(x, y, 900, 3);
+      const n = 0.9 + grain * 0.2;
+      out.push([Math.max(0, Math.min(255, r * n)), Math.max(0, Math.min(255, g * n)), Math.max(0, Math.min(255, b * n))]);
+    }
+  }
+  return out;
+}
+
+// 铜矿：石头底 + 随机散布的铜色矿斑（每 8×8 像素一块取哈希）。
+function copperOrePixels(): [number, number, number][] {
+  const [sr, sg, sb] = baseRGB(BLOCK_COLORS[BlockType.Stone]);
+  const oreHex = 0x3f7a52; // 铜绿矿斑
+  const [or_, og, ob] = baseRGB(oreHex);
+  const out: [number, number, number][] = [];
+  for (let y = 0; y < ATLAS_TILE; y++) {
+    for (let x = 0; x < ATLAS_TILE; x++) {
+      const stoneK = 0.86 + blockGrain(x, y, 1000) * 0.24;
+      const ore = blockGrain(x, y, 1100, 8) > 0.62;
+      const r = ore ? or_ * (0.8 + blockGrain(x, y, 1200, 4) * 0.4) : sr * stoneK;
+      const g = ore ? og * (0.8 + blockGrain(x, y, 1200, 4) * 0.4) : sg * stoneK;
+      const b = ore ? ob * (0.8 + blockGrain(x, y, 1200, 4) * 0.4) : sb * stoneK;
+      out.push([Math.max(0, Math.min(255, r)), Math.max(0, Math.min(255, g)), Math.max(0, Math.min(255, b))]);
+    }
+  }
+  return out;
+}
+
+// 土窑：陶土色 + 下方拱形窑口（深色）。
+function kilnPixels(): [number, number, number][] {
+  const [r, g, b] = baseRGB(BLOCK_COLORS[BlockType.Kiln]);
+  const out: [number, number, number][] = [];
+  for (let y = 0; y < ATLAS_TILE; y++) {
+    for (let x = 0; x < ATLAS_TILE; x++) {
+      const k = 0.88 + blockGrain(x, y, 1300) * 0.24;
+      // 窑口：下方中部拱形（约 y=20..31, x=8..23），内壁深色
+      const inHole = y >= 18 && y <= 31 && Math.abs(x - 16) <= 8 - (y - 18) * 0.5;
+      const dark = inHole ? 0.25 : 1;
+      out.push([Math.max(0, Math.min(255, r * k * dark)), Math.max(0, Math.min(255, g * k * dark)), Math.max(0, Math.min(255, b * k * dark))]);
+    }
+  }
+  return out;
+}
+
+// 沙筛：木色边框 + 细网格（网眼更亮）。
+function sandSievePixels(): [number, number, number][] {
+  const [r, g, b] = baseRGB(BLOCK_COLORS[BlockType.SandSieve]);
+  const out: [number, number, number][] = [];
+  for (let y = 0; y < ATLAS_TILE; y++) {
+    for (let x = 0; x < ATLAS_TILE; x++) {
+      // 边框 4px，内部网格 8px 间距
+      const border = x < 4 || x >= 28 || y < 4 || y >= 28;
+      const mx = x % 8;
+      const my = y % 8;
+      const grid = (mx === 7 || mx === 8 || my === 7 || my === 8) && !border;
+      const k = border ? 0.92 : grid ? 0.78 : 1.05;
+      out.push([Math.max(0, Math.min(255, r * k)), Math.max(0, Math.min(255, g * k)), Math.max(0, Math.min(255, b * k))]);
+    }
+  }
+  return out;
+}
+
+// 木制融合台（完整）：木色桌面 + 中心方框花纹。
+function craftingTablePixels(seed: number): [number, number, number][] {
+  const [r, g, b] = baseRGB(BLOCK_COLORS[BlockType.CraftTable]);
+  const out: [number, number, number][] = [];
+  for (let y = 0; y < ATLAS_TILE; y++) {
+    for (let x = 0; x < ATLAS_TILE; x++) {
+      const grain = blockGrain(x, y, seed);
+      let k = 0.92 + grain * 0.2;
+      // 中心 16×16 方框花纹（桌面工具线）
+      const inCenter = x >= 8 && x < 24 && y >= 8 && y < 24;
+      if (inCenter) {
+        const frame = x === 8 || x === 23 || y === 8 || y === 23;
+        k = frame ? 0.6 : 1.08;
+      }
+      out.push([Math.max(0, Math.min(255, r * k)), Math.max(0, Math.min(255, g * k)), Math.max(0, Math.min(255, b * k))]);
+    }
+  }
+  return out;
+}
+
 // 各瓦片的生成函数（索引对应 TILE_FILE_NAMES）
 type TileGen = () => [number, number, number][];
 const TILE_GENS: TileGen[] = [
@@ -222,6 +319,12 @@ const TILE_GENS: TileGen[] = [
   () => noisePixels(BLOCK_COLORS[BlockType.Granite], 101, 0.2), // 13 花岗岩
   () => noisePixels(BLOCK_COLORS[BlockType.Diorite], 111, 0.16), // 14 闪长岩
   () => noisePixels(BLOCK_COLORS[BlockType.Andesite], 121, 0.2), // 15 安山岩
+  glassPixels, // 16 玻璃
+  copperOrePixels, // 17 铜矿
+  kilnPixels, // 18 土窑
+  sandSievePixels, // 19 沙筛
+  () => craftingTablePixels(1400), // 20 木制融合台（完整）
+  () => craftingTablePixels(1500), // 21 不完整的木制融合台
 ];
 
 // 把像素数组画进图集 canvas 的对应瓦片格。
@@ -238,12 +341,13 @@ function drawTile(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, idx:
   ctx.putImageData(image, col * ATLAS_TILE, row * ATLAS_TILE);
 }
 
-// 生成完整图集（128×128）：先噪声填满，再尝试加载用户 PNG 覆盖。
+// 生成完整图集（256×128）：先噪声填满，再尝试加载用户 PNG 覆盖。
 export function createAtlasTexture(): THREE.CanvasTexture {
-  const size = ATLAS_COLS * ATLAS_TILE;
+  const width = ATLAS_COLS * ATLAS_TILE;
+  const height = ATLAS_ROWS * ATLAS_TILE;
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext('2d')!;
 
   const tex = new THREE.CanvasTexture(canvas);

@@ -77,20 +77,20 @@ export class Player {
 
     const body = new THREE.Mesh(
       new THREE.BoxGeometry(0.5, 1.2, 0.32),
-      new THREE.MeshBasicMaterial({ color: bodyColor }),
+      new THREE.MeshLambertMaterial({ color: bodyColor }),
     );
     body.position.y = 0.72;
 
     const head = new THREE.Mesh(
       new THREE.BoxGeometry(0.42, 0.42, 0.42),
-      new THREE.MeshBasicMaterial({ color: headColor }),
+      new THREE.MeshLambertMaterial({ color: headColor }),
     );
     head.position.y = 1.56;
 
     // 正面小标记（深色小块），朝向 -Z 方向，随 yaw 旋转后指向玩家看向的方向
     const face = new THREE.Mesh(
       new THREE.BoxGeometry(0.08, 0.08, 0.05),
-      new THREE.MeshBasicMaterial({ color: 0x111111 }),
+      new THREE.MeshLambertMaterial({ color: 0x111111 }),
     );
     face.position.set(0, 1.56, -0.24);
 

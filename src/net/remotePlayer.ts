@@ -38,19 +38,19 @@ function makeBody(): THREE.Group {
 
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(0.5, 1.2, 0.32),
-    new THREE.MeshBasicMaterial({ color: bodyColor }),
+    new THREE.MeshLambertMaterial({ color: bodyColor }),
   );
   body.position.y = 0.72;
 
   const head = new THREE.Mesh(
     new THREE.BoxGeometry(0.42, 0.42, 0.42),
-    new THREE.MeshBasicMaterial({ color: headColor }),
+    new THREE.MeshLambertMaterial({ color: headColor }),
   );
   head.position.y = 1.56;
 
   const face = new THREE.Mesh(
     new THREE.BoxGeometry(0.08, 0.08, 0.05),
-    new THREE.MeshBasicMaterial({ color: 0x111111 }),
+    new THREE.MeshLambertMaterial({ color: 0x111111 }),
   );
   face.position.set(0, 1.56, -0.24);
 
@@ -94,9 +94,9 @@ export class RemotePlayer {
     this.tyaw = state.yaw;
   }
 
-  // 每帧向目标插值（dt 秒）。约 0.25 秒趋近目标。
+  // 每帧向目标插值（dt 秒）。k=dt*14 约 0.14s 趋近目标，配合 20Hz+ 上报更贴合。
   update(dt: number): void {
-    const k = Math.min(1, dt * 8);
+    const k = Math.min(1, dt * 14);
     this.px += (this.tx - this.px) * k;
     this.py += (this.ty - this.py) * k;
     this.pz += (this.tz - this.pz) * k;

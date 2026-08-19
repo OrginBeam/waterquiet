@@ -208,6 +208,8 @@ function pickStone(x: number, y: number, z: number, seed: number): BlockType {
   if (r < 0.03) return BlockType.Granite;
   if (r < 0.06) return BlockType.Diorite;
   if (r < 0.09) return BlockType.Andesite;
+  // 铜矿脉：约 2% 的地下石方块（需石子及以上工具挖掘）
+  if (hash3D(x, y, z, seed + 950) < 0.02) return BlockType.CopperOre;
   return BlockType.Stone;
 }
 

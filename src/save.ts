@@ -38,6 +38,10 @@ export interface SaveData {
   // 模式与库存（可选：旧档没有这些字段，载入时走默认值）
   mode?: GameMode;
   inventory?: InventorySlot[]; // 格子背包，长 45（0-8 快捷栏 / 9-44 背包区）
+  // 昼夜累计时间（游戏分钟，1 现实秒 = 1 游戏分钟；可选，旧档载入时从 0 开始）
+  time?: { total: number };
+  // 生命值（可选，旧档载入时回满）
+  hp?: number;
 }
 
 const DB_NAME = 'waterquiet-save';

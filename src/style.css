@@ -71,6 +71,21 @@ canvas {
   white-space: pre;
 }
 
+/* 昼夜时钟（第N天 HH:MM），顶部居中，白字阴影保证任何天色下可读 */
+#clock {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* 提示浮层：放置被拦截等信息 */
 #toast {
   position: absolute;
@@ -745,6 +760,147 @@ body.touch #info {
   text-align: center;
 }
 
+/* —— 融合台合成面板（背包内嵌） —— */
+#bp-crafting {
+  margin-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-top: 12px;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+#craft-level {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffd87a;
+  margin-left: 6px;
+}
+
+#bp-recipes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bp-recipe {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 15, 22, 0.65);
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: left;
+}
+
+.bp-recipe:hover {
+  border-color: #8bbaf0;
+  background: rgba(58, 110, 165, 0.35);
+  transform: translateY(-1px);
+}
+
+.bp-recipe.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.bp-recipe.locked:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(10, 15, 22, 0.65);
+  transform: none;
+}
+
+.rp-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+
+.rp-name {
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 96px;
+}
+
+.rp-ing {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* —— 装置面板（土窑/沙筛） —— */
+#device-dialog {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 16, 0.6);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 70;
+}
+
+#device-dialog.visible {
+  display: flex;
+}
+
+#device-dialog .pause-card {
+  min-width: 300px;
+}
+
+#device-body {
+  color: #e2e8f0;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 12px 0;
+  padding: 10px 14px;
+  background: rgba(10, 15, 22, 0.6);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+#device-dialog .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* —— 生命值条 —— */
+#hp-bar {
+  position: absolute;
+  left: 50%;
+  top: 46px;
+  transform: translateX(-50%);
+  width: 160px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+#hp-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #e53935, #ef5350);
+  transition: width 0.2s ease;
+}
+
+#hp-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
 /* 小屏：背包格缩小适配 */
 @media (max-width: 520px) {
   #bp-grid,
@@ -756,6 +912,11 @@ body.touch #info {
   .bp-slot {
     width: 36px;
     height: 36px;
+  }
+
+  #hp-bar {
+    width: 120px;
+    top: 40px;
   }
 }
 

@@ -28,14 +28,15 @@ export class World {
   private meshes = new Map<string, ChunkMeshes>();
   // 与程序化地形不一致的区块：需存盘且会话期内永不下内存。
   private dirtyChunks = new Set<string>();
-  // 顶点色 × 贴图：贴图提供方块主色，顶点色叠加群系染色/面明暗/颜色抖动。
-  private material = new THREE.MeshBasicMaterial({
+  // 顶点色 × 贴图 × 漫反射光照：贴图提供方块主色，顶点色叠加群系染色/面明暗/颜色抖动，
+  // Lambert 漫反射让方块随昼夜方向光变亮/变暗（面法线见 chunk.ts）。
+  private material = new THREE.MeshLambertMaterial({
     map: createAtlasTexture(),
     vertexColors: true,
     side: THREE.DoubleSide,
   });
-  // 水：半透明、不写深度，让水面下的地形透出来。
-  private waterMaterial = new THREE.MeshBasicMaterial({
+  // 水：半透明、不写深度，让水面下的地形透出来。同受漫反射光照。
+  private waterMaterial = new THREE.MeshLambertMaterial({
     vertexColors: true,
     side: THREE.DoubleSide,
     transparent: true,

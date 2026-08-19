@@ -5,7 +5,7 @@ import { World } from './world';
 import { Player } from './player';
 import { Input } from './input';
 import { raycastVoxel, RaycastHit } from './raycast';
-import { BlockType, BLOCK_NAMES, BLOCK_COLORS, RENDER_DISTANCE, BLOCK_HARDNESS } from './core/constants';
+import { BlockType, BLOCK_NAMES, BLOCK_COLORS, RENDER_DISTANCE, BLOCK_HARDNESS, isBlockType } from './core/constants';
 import { findSpawn } from './core/terrain';
 import { initTouch } from './touch';
 import { SaveData, GameMode, SAVE_VERSION, isIndexedDBAvailable, saveGame, loadGame, listGames, upgradeSave } from './save';
@@ -14,6 +14,7 @@ import {
   emptyInventory,
   addItem,
   consumeFrom,
+  countOf,
   HOTBAR_SLOTS,
   BACKPACK_SLOTS,
   INVENTORY_SIZE,
@@ -21,6 +22,8 @@ import {
 import { getBlockIconDataUrl } from './core/itemIcon';
 import { NetworkClient, RemotePlayerState } from './net/client';
 import { RemotePlayer } from './net/remotePlayer';
+import { DayNight } from './daynight';
+import * as survival from './survival';
 import './style.css';
 
 let seed = 1337;
@@ -35,6 +38,21 @@ document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87b5e0);
 scene.fog = new THREE.Fog(0x87b5e0, RENDER_DISTANCE * 8, RENDER_DISTANCE * 16);
+
+// —— 昼夜系统（纯视觉）——
+// 太阳/月亮两盏方向光（无阴影）+ 半球环境光，随 dayNight 时间逐帧更新方向与强度。
+const dayNight = new DayNight();
+const sunLight = new THREE.DirectionalLight(0xfff3e0, 1);
+sunLight.position.set(50, 80, 20);
+scene.add(sunLight);
+const moonLight = new THREE.DirectionalLight(0x9db8ff, 0);
+moonLight.position.set(-50, 80, -20);
+scene.add(moonLight);
+// 天光/地光：白天亮、夜晚保留微光（见 dayNight.ambientIntensity）
+const hemiLight = new THREE.HemisphereLight(0x87b5e0, 0x55625a, 0.5);
+scene.add(hemiLight);
+// 复用单个颜色对象：每帧覆盖，scene.background 与 fog 引用同一份
+const skyColor = new THREE.Color();
 
 // 相机
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300);
@@ -156,6 +174,7 @@ const BP_HOTBAR_INDICES = Array.from({ length: HOTBAR_SLOTS }, (_, i) => i);
 function renderBackpack(): void {
   renderBpRow(bpGridEl, BP_GRID_INDICES);
   renderBpRow(bpHotbarEl, BP_HOTBAR_INDICES);
+  renderCrafting(); // 背包里的融合台合成面板
   if (held) {
     const iconUrl = getBlockIconDataUrl(held.type!);
     const countStr = gameMode === 'explore' ? ` ×${held.count}` : '';
@@ -239,8 +258,10 @@ function onBpClick(idx: number, right: boolean): void {
 
 function openBackpack(): void {
   if (backpackOpen || state !== 'playing') return;
+  if (deviceOpen) closeDevicePanel(); // 装置面板与背包互斥
   backpackOpen = true;
   renderBackpack();
+  renderCrafting(); // 背包内嵌融合台合成面板
   backpackEl.classList.add('visible');
   // 桌面端需退出指针锁，鼠标才能操作面板
   if (!input.isTouch && document.pointerLockElement) document.exitPointerLock();
@@ -250,6 +271,7 @@ function closeBackpack(): void {
   if (!backpackOpen) return;
   backpackOpen = false;
   backpackEl.classList.remove('visible');
+  placedCraftLevel = 0; // 关闭背包：不再处于「放下的融合台」交互中
   // 手持物品归还库存；放不下则丢弃（当前无限堆叠不会发生）
   if (held) {
     const leftover = addItem(inventory, held.type!, held.count);
@@ -293,8 +315,9 @@ const pauseMenu = document.getElementById('pause-menu')!;
 
 function setState(s: GameState): void {
   state = s;
-  // 离开游玩态（暂停/回菜单）时收起背包，避免面板残留在非游玩界面
+  // 离开游玩态（暂停/回菜单）时收起背包/装置面板，避免面板残留在非游玩界面
   if (s !== 'playing' && backpackOpen) closeBackpack();
+  if (s !== 'playing' && deviceOpen) closeDevicePanel();
   menuEl.classList.toggle('visible', s === 'menu');
   pauseMenu.classList.toggle('visible', s === 'paused');
   // 暂停/返回主菜单时自动存档（重新生成世界后 seed 已变，autosave 会被抑制以保护旧档）
@@ -311,8 +334,12 @@ const remotePlayers = new Map<string, RemotePlayer>();
 let online = false;
 // 联机时玩家名（由连接面板填写）
 let onlineName = '玩家';
-// 移动上报节流累加器（~10次/秒）
+// 移动上报节流累加器（~20次/秒）；静止时跳过发送，省带宽
 let moveAccum = 0;
+// 上次上报的位置/朝向，用于判断是否值得再发一次
+let lastSentPos = { x: 0, y: 0, z: 0, yaw: 0 };
+// 上次真正上报的时刻（用于静止保底心跳）
+let lastMoveSentAt = 0;
 
 // 暂停菜单「重新生成世界」按钮：联机时禁用（世界由服务器权威管理）
 const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
@@ -333,7 +360,11 @@ function joinOnline(url: string): void {
     player.velocity.set(0, 0, 0);
     player.onGround = false;
     resetView();
-    world.rebuildArea(player.position.x, player.position.z);
+    // 联机进入：不同步重建全部区块（会卡主线程），由主循环 update() 渐进加载（每帧 2 块）。
+    // 首次 update 会先构建玩家周围最近区块，世界逐块快速出现，不阻塞交互。
+    // 联机世界重新开始：回满血
+    hp = MAX_HP;
+    renderHp();
     // 游戏模式以服务器为准（探索=挖掘收集方块；自由=无限方块）
     gameMode = init.mode === 'explore' ? 'explore' : 'free';
     document.body.classList.toggle('explore', gameMode === 'explore');
@@ -430,6 +461,8 @@ let digProgress = 0;
 // 自由模式秒挖的节流：两次挖掘之间的最小间隔，避免按住横扫瞬挖一排。
 const DIG_COOLDOWN = 0.3; // 秒
 let digCooldown = 0;
+// 工具等级不足提示的节流（避免每帧刷 toast）
+let lastToolToast = 0;
 
 function raycast(): RaycastHit | null {
   const dir = new THREE.Vector3();
@@ -443,6 +476,10 @@ function place(): void {
   if (!hit) return;
   const slot = inventory[selectedSlot];
   if (slot.type === null) return; // 选中格为空（探索模式可能没东西）
+  if (!isBlockType(slot.type)) {
+    showToast('该物品不能放置');
+    return;
+  }
   const px = hit.x + hit.nx;
   const py = hit.y + hit.ny;
   const pz = hit.z + hit.nz;
@@ -460,6 +497,186 @@ function place(): void {
       renderInventory();
     }
   }
+}
+
+// —— 右键交互：优先装置/盛水，否则放置 ——
+// raycast 只命中实体方块（水不算实体），盛水需要能命中水面的专用检测。
+// 盛水检测「实体或水都算命中」，先碰到的如果是水才盛——避免隔着墙也能盛水。
+function raycastIncludeWater(): RaycastHit | null {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  return raycastVoxel(camera.position, dir, 8, (x, y, z) =>
+    world.isSolid(x, y, z) || world.getBlock(x, y, z) === BlockType.Water);
+}
+
+function interact(): void {
+  if (player.thirdPerson || state !== 'playing') return;
+
+  // 手持玻璃瓶 + 对准水面 → 盛水（瓶子一次性消耗）
+  if (inventory[selectedSlot].type === BlockType.GlassBottle) {
+    const wh = raycastIncludeWater();
+    if (wh && world.getBlock(wh.x, wh.y, wh.z) === BlockType.Water) {
+      if (gameMode === 'explore') consumeFrom(inventory, selectedSlot, 1);
+      addItem(inventory, BlockType.WaterBottle, 1);
+      renderInventory();
+      showToast('玻璃瓶装满了水');
+      return;
+    }
+  }
+
+  // 对准装置方块 → 打开对应面板
+  const hit = raycast();
+  if (hit) {
+    const target = world.getBlock(hit.x, hit.y, hit.z);
+    if (target === BlockType.Kiln) {
+      openDevicePanel('kiln');
+      return;
+    }
+    if (target === BlockType.SandSieve) {
+      openDevicePanel('sieve');
+      return;
+    }
+    if (target === BlockType.CraftTable || target === BlockType.IncompleteCraftTable) {
+      // 放下的融合台也可使用：记住它的等级，打开背包解锁对应配方
+      placedCraftLevel = target === BlockType.CraftTable ? 2 : 1;
+      openBackpack();
+      return;
+    }
+  }
+
+  place();
+}
+
+// —— 生命值 ——
+const MAX_HP = 100;
+let hp = MAX_HP;
+const hpBarEl = document.getElementById('hp-bar')!;
+const hpFillEl = document.getElementById('hp-fill')!;
+const hpTextEl = document.getElementById('hp-text')!;
+
+function renderHp(): void {
+  const pct = (hp / MAX_HP) * 100;
+  hpFillEl.style.width = `${pct}%`;
+  hpTextEl.textContent = `${hp}/${MAX_HP}`;
+}
+
+// 挖掘矿石的负面效果（绝对概率 20%）：-5 生命，死亡回出生点
+function takeMiningDamage(): void {
+  hp -= 5;
+  renderHp();
+  if (hp <= 0) {
+    hp = MAX_HP;
+    renderHp();
+    const spawn = findSpawn(world.seed);
+    player.position.set(spawn.x, spawn.height + 1, spawn.z);
+    player.velocity.set(0, 0, 0);
+    player.onGround = false;
+    showToast('你死了，回到了出生点');
+  } else {
+    showToast('-5 生命（矿石伤害）');
+  }
+}
+
+// —— 装置面板（土窑 / 沙筛）——
+let deviceOpen = false;
+let activeDevice: 'kiln' | 'sieve' = 'kiln';
+
+// 当前右键交互的「放下的融合台」等级（0=无 / 1=不完整 / 2=完整）。
+// 融合台放置后不再占库存，需记住正在使用的这个来解锁合成等级。
+let placedCraftLevel = 0;
+const deviceDialog = document.getElementById('device-dialog')!;
+const deviceTitleEl = document.getElementById('device-title')!;
+const deviceBodyEl = document.getElementById('device-body')!;
+const deviceActionBtn = document.getElementById('device-action') as HTMLButtonElement;
+
+function openDevicePanel(kind: 'kiln' | 'sieve'): void {
+  if (state !== 'playing') return;
+  if (backpackOpen) closeBackpack();
+  activeDevice = kind;
+  renderDevicePanel();
+  deviceDialog.classList.add('visible');
+  deviceOpen = true;
+  if (!input.isTouch && document.pointerLockElement) document.exitPointerLock();
+}
+
+function closeDevicePanel(): void {
+  deviceDialog.classList.remove('visible');
+  deviceOpen = false;
+  if (!input.isTouch && state === 'playing') renderer.domElement.requestPointerLock();
+}
+
+function renderDevicePanel(): void {
+  if (activeDevice === 'kiln') {
+    deviceTitleEl.textContent = '🔥 土窑（熔炼）';
+    deviceBodyEl.innerHTML =
+      `石英砂 ×${countOf(inventory, BlockType.QuartzSand)} + ` +
+      `便捷火种 ×${countOf(inventory, BlockType.Tinder)} → 玻璃`;
+    deviceActionBtn.textContent = '熔炼 1 个玻璃';
+    deviceActionBtn.disabled = !survival.hasIngredients(inventory, survival.SMELT_INGREDIENTS);
+    deviceActionBtn.onclick = () => {
+      if (survival.consumeIngredients(inventory, survival.SMELT_INGREDIENTS)) {
+        addItem(inventory, BlockType.Glass, 1);
+        renderInventory();
+        renderDevicePanel();
+        showToast('熔炼成功：玻璃');
+      }
+    };
+  } else {
+    deviceTitleEl.textContent = '🕸️ 沙筛（过滤）';
+    deviceBodyEl.innerHTML = `沙子 ×${countOf(inventory, BlockType.Sand)} → 石英砂`;
+    deviceActionBtn.textContent = '过滤 1 份石英砂';
+    deviceActionBtn.disabled = !survival.hasIngredients(inventory, survival.FILTER_INGREDIENTS);
+    deviceActionBtn.onclick = () => {
+      if (survival.consumeIngredients(inventory, survival.FILTER_INGREDIENTS)) {
+        addItem(inventory, BlockType.QuartzSand, 1);
+        renderInventory();
+        renderDevicePanel();
+        showToast('过滤成功：石英砂');
+      }
+    };
+  }
+}
+
+document.getElementById('device-close')!.addEventListener('click', closeDevicePanel);
+deviceDialog.addEventListener('pointerdown', (e) => {
+  if (e.target === deviceDialog) closeDevicePanel();
+});
+
+// —— 融合台合成面板（背包内嵌）——
+function renderCrafting(): void {
+  // 合成等级 = max(库存持有的融合台, 正在使用的放下融合台)
+  const level = Math.max(survival.craftLevelOf(inventory), placedCraftLevel);
+  const lvlNames = ['背包', '不完整台', '木制台'];
+  document.getElementById('craft-level')!.textContent = `（${lvlNames[level]}）`;
+  const container = document.getElementById('bp-recipes')!;
+  container.innerHTML = '';
+  for (const r of survival.RECIPES) {
+    if (r.level > level) continue; // 未解锁的配方不显示
+    const ok = survival.hasIngredients(inventory, r.ingredients);
+    const row = document.createElement('button');
+    row.className = 'bp-recipe' + (ok ? '' : ' locked');
+    const icon = getBlockIconDataUrl(r.result);
+    const ingText = r.ingredients.map((i) => `${BLOCK_NAMES[i.type]}×${i.count}`).join(' + ');
+    row.innerHTML =
+      `<img src="${icon}" class="rp-icon" />` +
+      `<span class="rp-name">${BLOCK_NAMES[r.result]}</span>` +
+      `<span class="rp-ing">${ingText}</span>`;
+    row.addEventListener('click', () => craftRecipe(r));
+    container.appendChild(row);
+  }
+}
+
+function craftRecipe(r: survival.Recipe): void {
+  if (!survival.hasIngredients(inventory, r.ingredients)) {
+    showToast('材料不足');
+    return;
+  }
+  if (!survival.consumeIngredients(inventory, r.ingredients)) return;
+  addItem(inventory, r.result, r.resultCount);
+  renderBackpack();
+  renderCrafting(); // 材料变化后刷新配方可合成状态
+  renderInventory();
+  showToast(`合成成功：${BLOCK_NAMES[r.result]}`);
 }
 
 function resetWorld(newSeed: number): void {
@@ -519,6 +736,10 @@ async function saveSlot(slot: number): Promise<void> {
     chunks: world.exportDirtyChunks(),
     mode: gameMode,
     inventory: inv,
+    // 昼夜时间（可选字段，旧档无此字段载入时从 0 开始）
+    time: { total: dayNight.getTotal() },
+    // 生命值（可选字段，旧档载入时回满）
+    hp,
   };
   try {
     await saveGame(slot, data);
@@ -560,6 +781,13 @@ async function loadSlot(slot: number): Promise<void> {
     player.pitch = data.player.pitch; // setter 内同步相机
     resetView(); // 载入存档从第一人称开始
 
+    // 恢复昼夜时间（旧档无此字段 → 从第 1 天 08:00 开始）
+    if (data.time && typeof data.time.total === 'number') dayNight.setTotal(data.time.total);
+
+    // 恢复生命值（旧档无此字段 → 回满）
+    hp = typeof data.hp === 'number' && data.hp >= 0 ? Math.min(MAX_HP, data.hp) : MAX_HP;
+    renderHp();
+
     // 恢复模式与库存（旧档无这些字段 → 默认自由 + 空背包）
     gameMode = data.mode ?? 'free';
     inventory =
@@ -584,6 +812,8 @@ async function loadSlot(slot: number): Promise<void> {
 function startWorld(mode: GameMode): void {
   const slot = nextSlotNumber();
   resetWorld(Math.floor(Math.random() * 1000000));
+  hp = MAX_HP; // 新世界回满血
+  renderHp();
   gameMode = mode;
   inventory = emptyInventory();
   held = null;
@@ -694,6 +924,8 @@ document.getElementById('reset-btn')!.addEventListener('click', () => {
   // 重新生成世界：新世界从零开始（模式不变），旧档已被自动存抑制逻辑保护
   inventory = emptyInventory();
   if (gameMode === 'free') prestockFree();
+  hp = MAX_HP; // 新世界回满血
+  renderHp();
   selectedSlot = 0;
   selectSlot(0);
   renderInventory();
@@ -733,7 +965,11 @@ renderer.domElement.addEventListener('mousedown', (e) => {
     if (e.button === 0) closeBackpack();
     return;
   }
-  if (e.button === 2) place();
+  if (deviceOpen) {
+    if (e.button === 0) closeDevicePanel();
+    return;
+  }
+  if (e.button === 2) interact();
 });
 
 // 暂停（桌面端退出指针锁，移动端直接进入暂停）
@@ -744,7 +980,7 @@ function pauseGame(): void {
 
 // 移动端触控
 const setTouchMode = initTouch(input, {
-  place,
+  place: interact, // 触屏放置按钮同样走右键交互（装置/盛水/放置）
   pause: pauseGame,
 });
 
@@ -779,9 +1015,9 @@ document.addEventListener('auxclick', (e) => e.preventDefault());
 document.addEventListener('dragstart', (e) => e.preventDefault());
 document.addEventListener('selectstart', (e) => e.preventDefault());
 
-// 数字键选方块（第三人称仅观看，不响应）
+// 数字键选方块（第三人称/背包/装置面板打开时不响应）
 document.addEventListener('keydown', (e) => {
-  if (backpackOpen || player.thirdPerson) return;
+  if (backpackOpen || deviceOpen || player.thirdPerson) return;
   const digits = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'];
   const n = digits.indexOf(e.code);
   if (n >= 0 && n < HOTBAR_SLOTS) selectSlot(n);
@@ -790,17 +1026,23 @@ document.addEventListener('keydown', (e) => {
 // 背包开关：E 打开/关闭，B 打开，Esc 关闭（关闭时归还/丢弃手持物品）
 document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyE') {
-    toggleBackpack();
+    if (deviceOpen) {
+      closeDevicePanel();
+    } else {
+      toggleBackpack();
+    }
   } else if (e.code === 'KeyB') {
     if (!backpackOpen) openBackpack();
   } else if (e.code === 'Escape' && backpackOpen) {
     closeBackpack();
+  } else if (e.code === 'Escape' && deviceOpen) {
+    closeDevicePanel();
   }
 });
 
 // F5 切换第一/第三人称（阻止浏览器默认刷新）
 document.addEventListener('keydown', (e) => {
-  if (e.code === 'F5' && state === 'playing') {
+  if (e.code === 'F5' && state === 'playing' && !backpackOpen && !deviceOpen) {
     e.preventDefault();
     toggleView();
   }
@@ -836,6 +1078,7 @@ scene.add(highlight);
 const infoEl = document.getElementById('info')!;
 const digBar = document.getElementById('dig-bar')!;
 const digFill = document.getElementById('dig-fill')!;
+const clockEl = document.getElementById('clock')!;
 const fpsFrames: number[] = [];
 
 function updateInfo(): void {
@@ -857,15 +1100,46 @@ function loop(): void {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
 
-  if (state === 'playing' && !backpackOpen) {
+  // —— 昼夜系统 ——
+  // 时间照常流逝（菜单/暂停也不例外）；联机时服务器权威 time 与本地偏差过大则校准
+  // （如刚加入、或后台挂机一段时间后重新回到前台）。
+  dayNight.advance(dt);
+  if (online && net.room) {
+    const st = net.room.state.time;
+    if (Math.abs(dayNight.getTotal() - st) > 30) dayNight.setTotal(st);
+  }
+  // 太阳/月亮方向光与半球环境光随昼夜更新，天空/雾色保持同色保证天际线融合
+  const sunDir = dayNight.sunDirection();
+  const moonDir = dayNight.moonDirection();
+  sunLight.position.copy(sunDir).multiplyScalar(100);
+  sunLight.intensity = dayNight.sunIntensity();
+  sunLight.color.copy(dayNight.sunColor());
+  moonLight.position.copy(moonDir).multiplyScalar(100);
+  moonLight.intensity = dayNight.moonIntensity();
+  hemiLight.intensity = dayNight.ambientIntensity();
+  dayNight.skyColor(skyColor);
+  scene.background = skyColor;
+  if (scene.fog) scene.fog.color.copy(skyColor);
+  clockEl.textContent = dayNight.formatClock();
+
+  if (state === 'playing' && !backpackOpen && !deviceOpen) {
     player.update(dt, input);
   }
-  // 联机：节流上报自身位置（~10次/秒）；插值更新远程玩家
+  // 联机：节流上报自身位置（~20次/秒，更平滑）；插值更新远程玩家。
+  // 位置/朝向变化足够小（或完全静止）时跳过上报，减少带宽与服务器负载；
+  // 但每 0.5s 仍保底发一次（含 yaw），避免长期静止后别人视角卡在旧位置。
   if (online && state === 'playing') {
     moveAccum += dt;
-    if (moveAccum >= 0.1) {
+    if (moveAccum >= 0.05) {
       moveAccum = 0;
-      net.sendMove(player.position.x, player.position.y, player.position.z, player.yaw, player.pitch);
+      const p = player.position;
+      const moved = Math.abs(p.x - lastSentPos.x) + Math.abs(p.z - lastSentPos.z) > 0.001
+        || Math.abs(player.yaw - lastSentPos.yaw) > 0.001;
+      if (moved || performance.now() - lastMoveSentAt > 500) {
+        lastSentPos = { x: p.x, y: p.y, z: p.z, yaw: player.yaw };
+        lastMoveSentAt = performance.now();
+        net.sendMove(p.x, p.y, p.z, player.yaw, player.pitch);
+      }
     }
   }
   for (const rp of remotePlayers.values()) rp.update(dt);
@@ -883,26 +1157,61 @@ function loop(): void {
 
   // 挖掘：自由模式秒挖但有节流（两次之间留间隔）；探索模式按住蓄力达到硬度时间才挖掉；松开/暂停重置
   if (digCooldown > 0) digCooldown -= dt;
-  if (state === 'playing' && !backpackOpen && !player.thirdPerson && input.digging && hit) {
+  if (state === 'playing' && !backpackOpen && !deviceOpen && !player.thirdPerson && input.digging && hit) {
     if (gameMode === 'free') {
-      // 自由模式：无限方块，无需蓄力，命中即挖（不入库），受冷却节流
+      // 自由模式：无限方块，无需蓄力，命中即挖，受冷却节流。
+      // 掉落也结算（方便体验生存物品链），但不结算矿石伤害（自由模式不惩罚）。
       if (digCooldown <= 0) {
+        const mined = world.getBlock(hit.x, hit.y, hit.z);
+        if (mined !== BlockType.Air && mined !== BlockType.Water) {
+          const tool = survival.toolLevelOf(inventory);
+          for (const d of survival.getDrops(mined, tool, survival.heldTool(inventory))) {
+            addItem(inventory, d.type, d.count);
+          }
+          renderInventory();
+        }
         world.setBlock(hit.x, hit.y, hit.z, BlockType.Air);
         if (online) net.setBlock(hit.x, hit.y, hit.z, BlockType.Air);
         digCooldown = DIG_COOLDOWN;
       }
     } else if (!digTarget || digTarget.x !== hit.x || digTarget.y !== hit.y || digTarget.z !== hit.z) {
-      digTarget = { x: hit.x, y: hit.y, z: hit.z };
-      digProgress = 0; // 目标改变 → 重新蓄力
+      const want = world.getBlock(hit.x, hit.y, hit.z);
+      // 探索模式：工具等级不足的方块（如徒手挖铜矿）不允许蓄力
+      if (gameMode === 'explore' && want !== BlockType.Air && want !== BlockType.Water
+          && !survival.canMine(want, survival.toolLevelOf(inventory))) {
+        digTarget = null;
+        digProgress = 0;
+        if (performance.now() - lastToolToast > 1200) {
+          lastToolToast = performance.now();
+          const needTool = survival.toolRequirement(want) === 1 ? '石子' : '石镐';
+          showToast(`需要 ${needTool} 才能挖 ${BLOCK_NAMES[want]}`);
+        }
+      } else {
+        digTarget = { x: hit.x, y: hit.y, z: hit.z };
+        digProgress = 0; // 目标改变 → 重新蓄力
+      }
     } else {
-      const hardness = BLOCK_HARDNESS[world.getBlock(hit.x, hit.y, hit.z)] ?? 1;
+      // 石镐（2 级）挖石块/铜矿更快：硬度减半，体现工具等级差异
+      let hardness = BLOCK_HARDNESS[world.getBlock(hit.x, hit.y, hit.z)] ?? 1;
+      if (gameMode === 'explore' && survival.toolLevelOf(inventory) >= 2) {
+        const blk = world.getBlock(hit.x, hit.y, hit.z);
+        if (blk === BlockType.Stone || blk === BlockType.CopperOre) hardness *= 0.5;
+      }
       digProgress += dt / hardness;
       if (digProgress >= 1) {
-        // 探索模式：挖掘获得方块入库（水/空气不可挖，双保险过滤）
+        // 探索模式：按工具等级与掉落表结算（水/空气不可挖，双保险过滤）
         if (gameMode === 'explore') {
           const mined = world.getBlock(hit.x, hit.y, hit.z);
           if (mined !== BlockType.Air && mined !== BlockType.Water) {
-            addItem(inventory, mined, 1); // 优先并入已有同类型，其次填首个空位
+            const tool = survival.toolLevelOf(inventory);
+            // 负面效果（绝对概率 20%）：挖石块/铜矿 → -5 生命（石镐 2 级无惩罚）
+            if (survival.rollMineDamage(mined, tool)) takeMiningDamage();
+            // 正面掉落（含保底概率）：按工具等级结算
+            const drops = survival.getDrops(mined, tool, survival.heldTool(inventory));
+            for (const d of drops) {
+              const leftover = addItem(inventory, d.type, d.count);
+              if (leftover > 0) showToast('背包已满，物品丢失');
+            }
             renderInventory();
           }
         }
@@ -925,7 +1234,6 @@ function loop(): void {
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
-
 // 初始化：显示主菜单，预加载出生点周围区块作为背景
 setState('menu');
 world.update(player.position.x, player.position.z);

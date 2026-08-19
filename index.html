@@ -11,6 +11,8 @@
     <div id="hud">
       <div id="crosshair"></div>
       <div id="info"></div>
+      <div id="clock"></div>
+      <div id="hp-bar"><div id="hp-fill"></div><span id="hp-text">100/100</span></div>
       <div id="dig-bar"><div id="dig-fill"></div></div>
       <div id="toast"></div>
       <div id="hotbar"></div>
@@ -19,7 +21,7 @@
       </div>
     </div>
 
-    <!-- 背包面板（E 键 / 右上角背包按钮打开） -->
+    <!-- 背包面板（E 键 / 右上角背包按钮打开；融合台内嵌合成） -->
     <div id="backpack">
       <div class="bp-card">
         <div class="bp-title">
@@ -28,8 +30,23 @@
         </div>
         <div id="bp-grid"></div>
         <div id="bp-hotbar"></div>
+        <!-- 融合台合成面板（等级 = 快捷栏手持的最高级融合台） -->
+        <div id="bp-crafting">
+          <div class="bp-title"><span>🧪 融合台 <span id="craft-level"></span></span></div>
+          <div id="bp-recipes"></div>
+        </div>
         <div id="bp-held"></div>
         <p class="bp-hint">左键拿起/放下 · 右键拆半 · 点画面外关闭</p>
+      </div>
+    </div>
+
+    <!-- 装置面板（土窑熔炼 / 沙筛过滤，右键装置方块打开） -->
+    <div id="device-dialog">
+      <div class="pause-card">
+        <h1 id="device-title">🔥 土窑（熔炼）</h1>
+        <p id="device-body"></p>
+        <button id="device-action" class="btn primary">熔炼</button>
+        <button id="device-close" class="btn">关闭</button>
       </div>
     </div>
 

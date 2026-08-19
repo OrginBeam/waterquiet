@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z, BlockType, BLOCK_COLORS } from './constants';
 import { getGrassColor } from './biome';
 import { hash3D } from './noise';
-import { ATLAS_TILE, ATLAS_COLS, createAtlasTexture } from './atlasGen';
+import { ATLAS_TILE, ATLAS_COLS, ATLAS_ROWS, createAtlasTexture } from './atlasGen';
 
 // world.ts 等从本模块取 createAtlasTexture，保持既有 import 路径不变
 export { createAtlasTexture } from './atlasGen';
@@ -30,9 +30,10 @@ const FACES: Face[] = [
 ];
 
 // —— 纹理图集 ——
-// 图集 128×128（4×4 瓦片，每片 32×32），布局见 atlasGen.ts。瓦片索引 = row*4+col：
+// 图集 256×128（8×4 瓦片，每片 32×32），布局见 atlasGen.ts。瓦片索引 = row*8+col：
 // 0 草顶 / 1 草侧 / 2 泥土(草底复用) / 3 石头 / 4 沙子 / 5 原木侧 / 6 原木顶 / 7 树叶 /
-// 8 雪 / 9 冰 / 10 砂砾 / 11 粘土 / 12 红沙 / 13 花岗岩 / 14 闪长岩 / 15 安山岩
+// 8 雪 / 9 冰 / 10 砂砾 / 11 粘土 / 12 红沙 / 13 花岗岩 / 14 闪长岩 / 15 安山岩 /
+// 16 玻璃 / 17 铜矿 / 18 土窑 / 19 沙筛 / 20 木制融合台 / 21 不完整的木制融合台
 
 // 方块 → 默认瓦片（单面体；草/原木为多面体特殊处理）
 const TILE_BY_BLOCK: Record<number, number> = {
@@ -48,6 +49,12 @@ const TILE_BY_BLOCK: Record<number, number> = {
   [BlockType.Granite]: 13,
   [BlockType.Diorite]: 14,
   [BlockType.Andesite]: 15,
+  [BlockType.Glass]: 16,
+  [BlockType.CopperOre]: 17,
+  [BlockType.Kiln]: 18,
+  [BlockType.SandSieve]: 19,
+  [BlockType.CraftTable]: 20,
+  [BlockType.IncompleteCraftTable]: 21,
 };
 
 // 每个面取哪张瓦片。faceIndex 对应 FACES 顺序：0顶 1底 2+X 3-X 4+Z 5-Z。
@@ -79,10 +86,12 @@ function makeGeometry(
   colors: number[],
   indices: number[],
   uvs: number[] | null,
+  normals: number[],
 ): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   if (uvs) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   return geometry;
@@ -100,9 +109,11 @@ export function buildChunkGeometry(
   const solidColors: number[] = [];
   const solidIndices: number[] = [];
   const solidUvs: number[] = [];
+  const solidNormals: number[] = [];
   const waterPos: number[] = [];
   const waterColors: number[] = [];
   const waterIndices: number[] = [];
+  const waterNormals: number[] = [];
   let solidVertexCount = 0;
   let waterVertexCount = 0;
 
@@ -164,6 +175,7 @@ export function buildChunkGeometry(
             for (const corner of face.corners) {
               waterPos.push(lx + corner[0], ly + corner[1], lz + corner[2]);
               waterColors.push(fr * bright, fg * bright, fb * bright);
+              waterNormals.push(face.dir[0], face.dir[1], face.dir[2]);
               waterVertexCount++;
             }
             waterIndices.push(base, base + 1, base + 2, base, base + 2, base + 3);
@@ -178,10 +190,12 @@ export function buildChunkGeometry(
               const u01 = map.flipU ? 1 - corner[map.u] : corner[map.u];
               const v01 = map.flipV ? 1 - corner[map.v] : corner[map.v];
               const u = (tx * ATLAS_TILE + 0.5 + u01 * (ATLAS_TILE - 1)) / (ATLAS_COLS * ATLAS_TILE);
+              // v 轴分母必须是图集行数（8 列 × 4 行 → 高度 4×ATLAS_TILE），用列数会导致错位
               const v =
-                1 - (ty * ATLAS_TILE + 0.5 + v01 * (ATLAS_TILE - 1)) / (ATLAS_COLS * ATLAS_TILE);
+                1 - (ty * ATLAS_TILE + 0.5 + v01 * (ATLAS_TILE - 1)) / (ATLAS_ROWS * ATLAS_TILE);
               solidPos.push(lx + corner[0], ly + corner[1], lz + corner[2]);
               solidColors.push(fr * bright, fg * bright, fb * bright);
+              solidNormals.push(face.dir[0], face.dir[1], face.dir[2]);
               solidUvs.push(u, v);
               solidVertexCount++;
             }
@@ -193,7 +207,11 @@ export function buildChunkGeometry(
   }
 
   return {
-    solid: solidPos.length > 0 ? makeGeometry(solidPos, solidColors, solidIndices, solidUvs) : null,
-    water: waterPos.length > 0 ? makeGeometry(waterPos, waterColors, waterIndices, null) : null,
+    solid: solidPos.length > 0
+      ? makeGeometry(solidPos, solidColors, solidIndices, solidUvs, solidNormals)
+      : null,
+    water: waterPos.length > 0
+      ? makeGeometry(waterPos, waterColors, waterIndices, null, waterNormals)
+      : null,
   };
 }
